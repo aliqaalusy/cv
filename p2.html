@@ -1,29 +1,35 @@
-<video id="cam" autoplay></video>
-<canvas id="frame"></canvas>
+<video id="cam" autoplay width="320" height="240"></video>
+<canvas id="frame" width="320" height="240"></canvas>
 
-<!-- Nama fungsi disesuaikan dengan JavaScript dan diberikan teks tombol -->
-<button onclick="mulaiKamera()">Buka Kamera</button>
-<button onclick="ambilFrame()">Ambil Frame</button>
-<button onclick="rataKecerahan()">Rata Kecerahan</button>
+<div>
+  <!-- Pemanggilan fungsi yang disesuaikan -->
+  <button onclick="tanganiMulaiKamera()">Buka Kamera</button>
+  <button onclick="tanganiAmbilFrame()">Ambil Frame</button>
+  <button onclick="tanganiHitungKecerahan()">Rata Kecerahan</button>
+</div>
+
+<p id="hasil">Kecerahan: -</p>
 
 <script>
+let videoElem = document.getElementById('cam');
+let canvasElem = document.getElementById('frame');
+let lastImageData = null;
+
 async function mulaiKamera() {
-    const video = document.getElementById('cam');
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-    await video.play();
-    return video;
+    videoElem.srcObject = stream;
+    await videoElem.play();
+    return videoElem;
 }
 
 function ambilFrame(video, canvas) {
     const ctx = canvas.getContext('2d');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 240;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
-// Hitung rata-rata kecerahan
 function rataKecerahan(imageData) {
     const d = imageData.data;
     let total = 0;
@@ -31,5 +37,23 @@ function rataKecerahan(imageData) {
         total += (d[i] + d[i + 1] + d[i + 2]) / 3;
     }
     return total / (d.length / 4);
+}
+
+// Fungsi handler untuk event onclick tombol
+async function tanganiMulaiKamera() {
+    await mulaiKamera();
+}
+
+function tanganiAmbilFrame() {
+    lastImageData = ambilFrame(videoElem, canvasElem);
+}
+
+function tanganiHitungKecerahan() {
+    if (!lastImageData) {
+        // Ambil frame otomatis jika belum ada gambar yang diambil
+        lastImageData = ambilFrame(videoElem, canvasElem);
+    }
+    const kecerahan = rataKecerahan(lastImageData);
+    document.getElementById('hasil').innerText = `Kecerahan: ${kecerahan.toFixed(2)}`;
 }
 </script>
