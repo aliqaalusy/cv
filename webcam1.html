@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FotoCraft - Live AR Face Filter & Motion Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        darkcard: '#1e293b',
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 4px;
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <i class="fa-solid fa-wand-magic-sparkles text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">FotoCraft AR Motion</h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Live Real-time Face Motion Tracking & Filter</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <input type="file" id="imageInput" accept="image/*" class="hidden">
+                <button onclick="startCamera()" id="btnStartCamera" class="px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium transition flex items-center gap-2 shadow-md shadow-sky-600/20">
+                    <i class="fa-solid fa-video"></i>
+                    <span class="hidden sm:inline">Kamera Live AR</span>
+                </button>
+                <button onclick="document.getElementById('imageInput').click()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition flex items-center gap-2 border border-slate-700/60 shadow-sm">
+                    <i class="fa-solid fa-upload text-sky-400"></i>
+                    <span class="hidden sm:inline">Unggah Foto</span>
+                </button>
+                <button onclick="downloadImage()" id="btnDownload" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition flex items-center gap-2 shadow-md opacity-50 cursor-not-allowed" disabled>
+                    <i class="fa-solid fa-download"></i>
+                    <span>Unduh</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
+
+        <section class="flex-1 flex flex-col items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800 p-4 min-h-[380px] sm:min-h-[500px] relative overflow-hidden shadow-inner">
+            
+            <div id="uploadPlaceholder" class="flex flex-col items-center justify-center text-center p-6 max-w-sm">
+                <div class="w-20 h-20 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center mb-4 text-sky-400 text-2xl shadow-inner">
+                    <i class="fa-solid fa-hat-wizard"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-200 mb-1">Motion Tracking AR Face Filter</h3>
+                <p class="text-xs text-slate-400 mb-5">Klik tombol di bawah ini. Stiker proporsional (tanduk, kumis, mahkota, dll.) akan otomatis menempel & **mengikuti gerakan wajah Anda**!</p>
+                <button type="button" onclick="startCamera()" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/30 transition flex items-center gap-2">
+                    <i class="fa-solid fa-video"></i> Aktifkan Kamera & Tracking
+                </button>
+            </div>
+
+            <video id="webcam" autoplay playsinline muted class="hidden"></video>
+
+            <div id="canvasWrapper" class="relative max-w-full max-h-[65vh] flex items-center justify-center hidden">
+                <canvas id="mainCanvas" class="max-w-full max-h-[60vh] rounded-lg shadow-2xl object-contain border border-slate-800/80 cursor-crosshair"></canvas>
+            </div>
+
+            <div id="liveArBar" class="absolute bottom-16 bg-slate-900/90 backdrop-blur border border-slate-800 text-xs px-4 py-2 rounded-full hidden flex items-center gap-2 shadow-xl z-20">
+                <span class="text-sky-400 font-semibold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Motion Tracking:
+                </span>
+                <span id="arFilterStatus" class="text-slate-300 font-bold">Kumis (Tracking Active)</span>
+            </div>
+
+            <div id="imageInfoBar" class="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur border border-slate-800 text-[11px] text-slate-400 px-3 py-1.5 rounded-full hidden flex items-center gap-2">
+                <span id="infoDimensions">0 x 0 px</span>
+                <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
+                <span id="activeFilterName">Original</span>
+            </div>
+
+            <div id="topActionBtns" class="absolute top-3 right-3 flex items-center gap-2 hidden">
+                <button onclick="captureCameraFrame()" id="btnCaptureFrame" class="bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-lg">
+                    <i class="fa-solid fa-camera"></i> Tangkap Foto
+                </button>
+                <button id="btnResetAll" onclick="resetFilters()" class="bg-slate-900/90 hover:bg-slate-800 backdrop-blur border border-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-rotate-left text-sky-400"></i> Reset
+                </button>
+            </div>
+        </section>
+
+        <aside class="w-full lg:w-80 flex flex-col gap-4 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
+
+            <div class="grid grid-cols-3 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                <button onclick="switchTab('arface')" id="tabBtn-arface" class="py-1.5 rounded-lg bg-sky-600 text-white font-medium transition">Stiker AR</button>
+                <button onclick="switchTab('filters')" id="tabBtn-filters" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Filter Citra</button>
+                <button onclick="switchTab('adjust')" id="tabBtn-adjust" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Pengaturan</button>
+            </div>
+
+            <!-- TAB 1: AR FACE STICKERS -->
+            <div id="tabContent-arface" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm space-y-4">
+                <div class="flex items-center justify-between mb-1">
+                    <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> Stiker AR Grafis
+                    </h2>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="setArFilter('devil')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="devil">
+                        <span>😈 Tanduk Iblis</span>
+                    </button>
+                    <button onclick="setArFilter('mustache')" class="ar-btn p-2.5 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition flex items-center justify-between text-xs font-medium text-slate-200" data-ar="mustache">
+                        <span>👨 Kumis Pria</span>
+                    </button>
+                    <button onclick="setArFilter('crown')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="crown">
+                        <span>👑 Mahkota Emas</span>
+                    </button>
+                    <button onclick="setArFilter('hat')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="hat">
+                        <span>🎩 Topi Pesulap</span>
+                    </button>
+                    <button onclick="setArFilter('glasses')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="glasses">
+                        <span>🕶️ Kacamata Hitam</span>
+                    </button>
+                    <button onclick="setArFilter('cat')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="cat">
+                        <span>🐱 Telinga Kucing</span>
+                    </button>
+                    <button onclick="setArFilter('halo')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="halo">
+                        <span>😇 Lingkaran Malaikat</span>
+                    </button>
+                    <button onclick="setArFilter('none')" class="ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-ar="none">
+                        <span>🚫 Tanpa Stiker</span>
+                    </button>
+                </div>
+
+                <hr class="border-slate-800">
+
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-sliders text-sky-400"></i> Penyesuaian Ukuran & Posisi</h3>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Ukuran Stiker (Scale)</label>
+                            <span id="valArScale">100%</span>
+                        </div>
+                        <input type="range" id="sliderArScale" min="30" max="200" value="100" class="w-full">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Offset Vertikal (Y)</label>
+                            <span id="valArOffsetY">0px</span>
+                        </div>
+                        <input type="range" id="sliderArOffsetY" min="-120" max="120" value="0" class="w-full">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Sensitivitas Smooth Tracking</label>
+                            <span id="valSmoothing">80%</span>
+                        </div>
+                        <input type="range" id="sliderSmoothing" min="10" max="95" value="80" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Filter Presets -->
+            <div id="tabContent-filters" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm hidden space-y-4">
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="applyPreset('normal')" class="preset-btn p-2 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition text-xs font-medium text-slate-200" data-filter="normal">
+                        <span>Original</span>
+                    </button>
+                    <button onclick="applyPreset('grayscale')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="grayscale">
+                        <span>Grayscale</span>
+                    </button>
+                    <button onclick="applyPreset('bw')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="bw">
+                        <span>Black-White</span>
+                    </button>
+                    <button onclick="applyPreset('invert')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="invert">
+                        <span>Invert</span>
+                    </button>
+                    <button onclick="applyPreset('sepia')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="sepia">
+                        <span>Sepia</span>
+                    </button>
+                    <button onclick="applyPreset('vivid_cool')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="vivid_cool">
+                        <span>Vivid Cool</span>
+                    </button>
+                    <button onclick="applyPreset('dramatic')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="dramatic">
+                        <span>Dramatic</span>
+                    </button>
+                    <button onclick="applyPreset('monocrom')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300" data-filter="monocrom">
+                        <span>Monocrom</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 3: Adjustments -->
+            <div id="tabContent-adjust" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm hidden space-y-3">
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label>Kecerahan (Brightness)</label>
+                        <span id="valBrightness">100%</span>
+                    </div>
+                    <input type="range" id="sliderBrightness" min="0" max="200" value="100" class="w-full">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label>Kontras (Contrast)</label>
+                        <span id="valContrast">100%</span>
+                    </div>
+                    <input type="range" id="sliderContrast" min="0" max="200" value="100" class="w-full">
+                </div>
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label>Threshold B&W</label>
+                        <span id="valThreshold">128</span>
+                    </div>
+                    <input type="range" id="sliderThreshold" min="0" max="255" value="128" class="w-full">
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 border border-slate-700 text-slate-200 text-xs px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-sky-400 text-sm"></i>
+        <span id="toastMsg">Pesan</span>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const webcam = document.getElementById('webcam');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const btnDownload = document.getElementById('btnDownload');
+        const topActionBtns = document.getElementById('topActionBtns');
+        const imageInfoBar = document.getElementById('imageInfoBar');
+        const infoDimensions = document.getElementById('infoDimensions');
+        const activeFilterName = document.getElementById('activeFilterName');
+        const liveArBar = document.getElementById('liveArBar');
+        const arFilterStatus = document.getElementById('arFilterStatus');
+
+        // Controls
+        const sliderArScale = document.getElementById('sliderArScale');
+        const sliderArOffsetY = document.getElementById('sliderArOffsetY');
+        const sliderSmoothing = document.getElementById('sliderSmoothing');
+
+        const valArScale = document.getElementById('valArScale');
+        const valArOffsetY = document.getElementById('valArOffsetY');
+        const valSmoothing = document.getElementById('valSmoothing');
+
+        const sliderBrightness = document.getElementById('sliderBrightness');
+        const sliderContrast = document.getElementById('sliderContrast');
+        const sliderThreshold = document.getElementById('sliderThreshold');
+
+        let isCameraActive = false;
+        let mediaStream = null;
+        let animationFrameId = null;
+        let activeArFilter = 'devil'; 
+        let currentImage = null;
+        let activePreset = 'normal';
+
+        let trackedFace = {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            angle: 0,
+            initialized: false
+        };
+
+        let nativeFaceDetector = null;
+        if ('FaceDetector' in window) {
+            try {
+                nativeFaceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+            } catch (e) {}
+        }
+
+        imageInput.addEventListener('change', handleImageUpload);
+        sliderArScale.addEventListener('input', () => { valArScale.innerText = `${sliderArScale.value}%`; if (!isCameraActive) renderImage(); });
+        sliderArOffsetY.addEventListener('input', () => { valArOffsetY.innerText = `${sliderArOffsetY.value}px`; if (!isCameraActive) renderImage(); });
+        sliderSmoothing.addEventListener('input', () => { valSmoothing.innerText = `${sliderSmoothing.value}%`; });
+
+        sliderBrightness.addEventListener('input', () => { if (!isCameraActive) renderImage(); });
+        sliderContrast.addEventListener('input', () => { if (!isCameraActive) renderImage(); });
+        sliderThreshold.addEventListener('input', () => { if (!isCameraActive) renderImage(); });
+
+        function switchTab(tabName) {
+            ['arface', 'filters', 'adjust'].forEach(t => {
+                const btn = document.getElementById(`tabBtn-${t}`);
+                const content = document.getElementById(`tabContent-${t}`);
+                if (t === tabName) {
+                    btn.className = "py-1.5 rounded-lg bg-sky-600 text-white font-medium transition";
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = "py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition";
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        async function startCamera() {
+            stopCameraStream();
+
+            try {
+                const constraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false };
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                webcam.srcObject = mediaStream;
+
+                webcam.onloadedmetadata = () => {
+                    webcam.play();
+                    isCameraActive = true;
+                    trackedFace.initialized = false;
+
+                    canvas.width = webcam.videoWidth;
+                    canvas.height = webcam.videoHeight;
+                    infoDimensions.innerText = `${canvas.width} x ${canvas.height} px`;
+
+                    uploadPlaceholder.classList.add('hidden');
+                    canvasWrapper.classList.remove('hidden');
+                    topActionBtns.classList.remove('hidden');
+                    imageInfoBar.classList.remove('hidden');
+                    liveArBar.classList.remove('hidden');
+
+                    btnDownload.disabled = false;
+                    btnDownload.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                    showToast('Tracking Wajah Real-Time Aktif!');
+                    runRenderLoop();
+                };
+
+            } catch (err) {
+                showToast('Gagal membuka kamera.', 'error');
+            }
+        }
+
+        function stopCameraStream() {
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+            isCameraActive = false;
+            liveArBar.classList.add('hidden');
+        }
+
+        function trackFaceOptical(source) {
+            const sampleWidth = 160;
+            const sampleHeight = 120;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sampleWidth;
+            tempCanvas.height = sampleHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.drawImage(source, 0, 0, sampleWidth, sampleHeight);
+            const imgData = tempCtx.getImageData(0, 0, sampleWidth, sampleHeight);
+            const data = imgData.data;
+
+            let sumX = 0, sumY = 0, totalMatch = 0;
+
+            for (let y = 0; y < sampleHeight; y++) {
+                for (let x = 0; x < sampleWidth; x++) {
+                    const idx = (y * sampleWidth + x) * 4;
+                    const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+
+                    if (r > 60 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 15) {
+                        sumX += x;
+                        sumY += y;
+                        totalMatch++;
+                    }
+                }
+            }
+
+            if (totalMatch > 80) {
+                const scaleX = canvas.width / sampleWidth;
+                const scaleY = canvas.height / sampleHeight;
+
+                const targetX = (sumX / totalMatch) * scaleX;
+                const targetY = (sumY / totalMatch) * scaleY;
+                const targetW = Math.sqrt(totalMatch) * scaleX * 1.5;
+                const targetH = targetW * 1.2;
+
+                return { x: targetX, y: targetY, width: targetW, height: targetH, angle: 0 };
+            }
+
+            return null;
+        }
+
+        async function runRenderLoop() {
+            if (!isCameraActive) return;
+
+            let detectedRaw = null;
+
+            if (nativeFaceDetector && activeArFilter !== 'none') {
+                try {
+                    const faces = await nativeFaceDetector.detect(webcam);
+                    if (faces.length > 0) {
+                        const box = faces[0].boundingBox;
+                        const rawX = canvas.width - (box.x + box.width / 2);
+                        const rawY = box.y + box.height / 2;
+                        
+                        let angle = 0;
+                        if (faces[0].landmarks) {
+                            const eyes = faces[0].landmarks.filter(l => l.type === 'eye');
+                            if (eyes.length >= 2) {
+                                const dx = eyes[1].location.x - eyes[0].location.x;
+                                const dy = eyes[1].location.y - eyes[0].location.y;
+                                angle = -Math.atan2(dy, dx);
+                            }
+                        }
+
+                        detectedRaw = { x: rawX, y: rawY, width: box.width, height: box.height, angle: angle };
+                    }
+                } catch (e) {}
+            }
+
+            if (!detectedRaw && activeArFilter !== 'none') {
+                detectedRaw = trackFaceOptical(webcam);
+            }
+
+            if (detectedRaw) {
+                const factor = (100 - parseInt(sliderSmoothing.value)) / 100;
+                
+                if (!trackedFace.initialized) {
+                    trackedFace.x = detectedRaw.x;
+                    trackedFace.y = detectedRaw.y;
+                    trackedFace.width = detectedRaw.width;
+                    trackedFace.height = detectedRaw.height;
+                    trackedFace.angle = detectedRaw.angle;
+                    trackedFace.initialized = true;
+                } else {
+                    trackedFace.x += (detectedRaw.x - trackedFace.x) * factor;
+                    trackedFace.y += (detectedRaw.y - trackedFace.y) * factor;
+                    trackedFace.width += (detectedRaw.width - trackedFace.width) * factor;
+                    trackedFace.height += (detectedRaw.height - trackedFace.height) * factor;
+                    trackedFace.angle += (detectedRaw.angle - trackedFace.angle) * factor;
+                }
+            }
+
+            drawToCanvas(webcam);
+            animationFrameId = requestAnimationFrame(runRenderLoop);
+        }
+
+        function drawToCanvas(sourceElement) {
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isCameraActive) {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+
+            let filterStr = `brightness(${sliderBrightness.value}%) contrast(${sliderContrast.value}%)`;
+            if (activePreset === 'grayscale') filterStr += ' grayscale(100%)';
+            if (activePreset === 'invert') filterStr += ' invert(100%)';
+            if (activePreset === 'sepia') filterStr += ' sepia(100%)';
+            if (activePreset === 'vivid_cool') filterStr += ' saturate(160%) hue-rotate(10deg)';
+            if (activePreset === 'dramatic') filterStr += ' contrast(150%) saturate(70%)';
+
+            ctx.filter = filterStr;
+            ctx.drawImage(sourceElement, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
+            if (activePreset === 'bw' || activePreset === 'monocrom') {
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imgData.data;
+                const thresh = parseInt(sliderThreshold.value);
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const avg = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    if (activePreset === 'bw') {
+                        const val = avg >= thresh ? 255 : 0;
+                        data[i] = val; data[i + 1] = val; data[i + 2] = val;
+                    } else if (activePreset === 'monocrom') {
+                        data[i] = avg * 0.3; data[i + 1] = avg * 0.6; data[i + 2] = avg * 0.9;
+                    }
+                }
+                ctx.putImageData(imgData, 0, 0);
+            }
+
+            if (activeArFilter !== 'none') {
+                drawDynamicGraphicSticker();
+            }
+        }
+
+        function drawDynamicGraphicSticker() {
+            if (!trackedFace.initialized) return;
+
+            const userScale = parseInt(sliderArScale.value) / 100;
+            const offsetY = parseInt(sliderArOffsetY.value);
+
+            const faceCenterX = trackedFace.x;
+            const faceCenterY = trackedFace.y;
+            const faceWidth = trackedFace.width || (canvas.width * 0.3);
+
+            ctx.save();
+            ctx.translate(faceCenterX, faceCenterY + offsetY);
+            ctx.rotate(trackedFace.angle);
+
+            // Scale base size down to prevent huge overlays
+            const baseW = faceWidth * 0.85 * userScale;
+
+            if (activeArFilter === 'devil') {
+                // Tanduk Iblis Merah (Hanya pasang dua tanduk di kanan & kiri atas kepala)
+                const hornSize = baseW * 0.38;
+                const topHeadY = -faceWidth * 0.45;
+
+                // Left Horn
+                ctx.save();
+                ctx.translate(-baseW * 0.32, topHeadY);
+                ctx.fillStyle = '#dc2626';
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(-hornSize * 0.6, -hornSize * 0.5, -hornSize * 0.2, -hornSize * 1.3, hornSize * 0.2, -hornSize * 1.2);
+                ctx.bezierCurveTo(hornSize * 0.1, -hornSize * 0.6, hornSize * 0.3, -hornSize * 0.2, 0, 0);
+                ctx.fill();
+                ctx.restore();
+
+                // Right Horn
+                ctx.save();
+                ctx.translate(baseW * 0.32, topHeadY);
+                ctx.fillStyle = '#dc2626';
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(hornSize * 0.6, -hornSize * 0.5, hornSize * 0.2, -hornSize * 1.3, -hornSize * 0.2, -hornSize * 1.2);
+                ctx.bezierCurveTo(-hornSize * 0.1, -hornSize * 0.6, -hornSize * 0.3, -hornSize * 0.2, 0, 0);
+                ctx.fill();
+                ctx.restore();
+
+            } else if (activeArFilter === 'mustache') {
+                // Kumis Hitam Presisi
+                const stw = baseW * 0.65;
+                const sth = stw * 0.35;
+                const noseY = faceWidth * 0.12;
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.moveTo(0, noseY);
+                ctx.bezierCurveTo(-stw * 0.2, noseY - sth * 0.5, -stw * 0.5, noseY, -stw * 0.5, noseY + sth * 0.6);
+                ctx.bezierCurveTo(-stw * 0.3, noseY + sth * 0.9, -stw * 0.1, noseY + sth * 0.3, 0, noseY + sth * 0.2);
+                ctx.bezierCurveTo(stw * 0.1, noseY + sth * 0.3, stw * 0.3, noseY + sth * 0.9, stw * 0.5, noseY + sth * 0.6);
+                ctx.bezierCurveTo(stw * 0.5, noseY, stw * 0.2, noseY - sth * 0.5, 0, noseY);
+                ctx.fill();
+
+            } else if (activeArFilter === 'crown') {
+                // Mahkota Emas
+                const cw = baseW * 0.8;
+                const ch = cw * 0.5;
+                const headY = -faceWidth * 0.52;
+
+                ctx.fillStyle = '#fbbf24';
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(-cw / 2, headY);
+                ctx.lineTo(-cw / 2, headY - ch * 0.7);
+                ctx.lineTo(-cw * 0.25, headY - ch * 0.35);
+                ctx.lineTo(0, headY - ch);
+                ctx.lineTo(cw * 0.25, headY - ch * 0.35);
+                ctx.lineTo(cw / 2, headY - ch * 0.7);
+                ctx.lineTo(cw / 2, headY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Ruby Jewels
+                ctx.fillStyle = '#ef4444';
+                [-cw / 2, 0, cw / 2].forEach((xPos, idx) => {
+                    const yPos = idx === 1 ? headY - ch : headY - ch * 0.7;
+                    ctx.beginPath();
+                    ctx.arc(xPos, yPos, cw * 0.06, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+            } else if (activeArFilter === 'glasses') {
+                // Kacamata Hitam Stylish
+                const gw = baseW * 0.85;
+                const gh = gw * 0.32;
+                const eyeY = -faceWidth * 0.02;
+
+                ctx.fillStyle = '#090d16';
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2.5;
+
+                // Left Lens
+                ctx.beginPath();
+                ctx.roundRect(-gw * 0.48, eyeY - gh / 2, gw * 0.42, gh, [8, 8, 16, 16]);
+                ctx.fill();
+                ctx.stroke();
+
+                // Right Lens
+                ctx.beginPath();
+                ctx.roundRect(gw * 0.06, eyeY - gh / 2, gw * 0.42, gh, [8, 8, 16, 16]);
+                ctx.fill();
+                ctx.stroke();
+
+                // Bridge
+                ctx.beginPath();
+                ctx.moveTo(-gw * 0.06, eyeY - gh * 0.2);
+                ctx.lineTo(gw * 0.06, eyeY - gh * 0.2);
+                ctx.stroke();
+
+            } else if (activeArFilter === 'cat') {
+                // Telinga Kucing Merah Muda
+                const ew = baseW * 0.35;
+                const eh = ew * 1.1;
+                const headY = -faceWidth * 0.45;
+
+                // Outer Ears
+                ctx.fillStyle = '#f43f5e';
+                // Left
+                ctx.beginPath();
+                ctx.moveTo(-baseW * 0.4, headY);
+                ctx.lineTo(-baseW * 0.25, headY - eh);
+                ctx.lineTo(-baseW * 0.05, headY);
+                ctx.fill();
+                // Right
+                ctx.beginPath();
+                ctx.moveTo(baseW * 0.05, headY);
+                ctx.lineTo(baseW * 0.25, headY - eh);
+                ctx.lineTo(baseW * 0.4, headY);
+                ctx.fill();
+
+                // Inner Ears
+                ctx.fillStyle = '#fecdd3';
+                ctx.beginPath();
+                ctx.moveTo(-baseW * 0.35, headY);
+                ctx.lineTo(-baseW * 0.25, headY - eh * 0.7);
+                ctx.lineTo(-baseW * 0.12, headY);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(baseW * 0.12, headY);
+                ctx.lineTo(baseW * 0.25, headY - eh * 0.7);
+                ctx.lineTo(baseW * 0.35, headY);
+                ctx.fill();
+
+            } else if (activeArFilter === 'hat') {
+                // Topi Pesulap / Top Hat
+                const hw = baseW * 0.8;
+                const hh = hw * 0.7;
+                const headY = -faceWidth * 0.45;
+
+                // Brim
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.ellipse(0, headY, hw * 0.6, hw * 0.15, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Top Cylinder
+                ctx.beginPath();
+                ctx.rect(-hw * 0.35, headY - hh, hw * 0.7, hh);
+                ctx.fill();
+
+                // Ribbon
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillRect(-hw * 0.35, headY - hh * 0.25, hw * 0.7, hh * 0.2);
+
+            } else if (activeArFilter === 'halo') {
+                // Lingkaran Malaikat Bersinar
+                const haloR = baseW * 0.45;
+                const headY = -faceWidth * 0.65;
+
+                ctx.strokeStyle = '#fde047';
+                ctx.lineWidth = 6;
+                ctx.shadowColor = '#facc15';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.ellipse(0, headY, haloR, haloR * 0.3, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function setArFilter(filterName) {
+            activeArFilter = filterName;
+            
+            document.querySelectorAll('.ar-btn').forEach(btn => {
+                if (btn.getAttribute('data-ar') === filterName) {
+                    btn.className = "ar-btn p-2.5 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition flex items-center justify-between text-xs font-medium text-slate-200";
+                } else {
+                    btn.className = "ar-btn p-2.5 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition flex items-center justify-between text-xs font-medium text-slate-300";
+                }
+            });
+
+            arFilterStatus.innerText = filterName.toUpperCase();
+            if (!isCameraActive) renderImage();
+            showToast(`Stiker AR ${filterName.toUpperCase()} Diaktifkan!`);
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            stopCameraStream();
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    currentImage = img;
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+
+                    trackedFace = {
+                        x: img.width / 2,
+                        y: img.height * 0.42,
+                        width: Math.min(img.width, img.height) * 0.38,
+                        height: Math.min(img.width, img.height) * 0.48,
+                        angle: 0,
+                        initialized: true
+                    };
+
+                    uploadPlaceholder.classList.add('hidden');
+                    canvasWrapper.classList.remove('hidden');
+                    topActionBtns.classList.remove('hidden');
+                    imageInfoBar.classList.remove('hidden');
+                    
+                    btnDownload.disabled = false;
+                    btnDownload.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                    infoDimensions.innerText = `${img.width} x ${img.height} px`;
+                    renderImage();
+                    showToast('Foto dimuat!');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderImage() {
+            if (isCameraActive || !currentImage) return;
+            drawToCanvas(currentImage);
+        }
+
+        function captureCameraFrame() {
+            if (!isCameraActive) return;
+            const snapshotUrl = canvas.toDataURL('image/png');
+            const capturedImg = new Image();
+            capturedImg.onload = function() {
+                stopCameraStream();
+                currentImage = capturedImg;
+                renderImage();
+                showToast('Foto berhasil ditangkap!');
+            };
+            capturedImg.src = snapshotUrl;
+        }
+
+        function applyPreset(presetName) {
+            activePreset = presetName;
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (btn.getAttribute('data-filter') === presetName) {
+                    btn.className = "preset-btn p-2 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition text-xs font-medium text-slate-200";
+                } else {
+                    btn.className = "preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 text-left transition text-xs font-medium text-slate-300";
+                }
+            });
+            activeFilterName.innerText = presetName;
+            if (!isCameraActive) renderImage();
+        }
+
+        function resetFilters() {
+            sliderBrightness.value = 100;
+            sliderContrast.value = 100;
+            sliderThreshold.value = 128;
+            sliderArScale.value = 100;
+            sliderArOffsetY.value = 0;
+            sliderSmoothing.value = 80;
+            valArScale.innerText = '100%';
+            valArOffsetY.innerText = '0px';
+            valSmoothing.innerText = '80%';
+            applyPreset('normal');
+            setArFilter('devil');
+            showToast('Semua filter direset');
+        }
+
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = `fotocraft-ar-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('Foto diunduh!');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = message;
+            toastIcon.className = type === 'error' ? 'fa-solid fa-circle-exclamation text-rose-400 text-sm' : 'fa-solid fa-circle-check text-sky-400 text-sm';
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
