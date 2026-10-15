@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FotoCraft - Editor Foto & Kamera Live</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        darkcard: '#1e293b',
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                    <i class="fa-solid fa-camera-retro text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">FotoCraft</h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">Editor Citra, Kamera, Crop, Resize & Stiker Lucu</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons Header -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <input type="file" id="imageInput" accept="image/*" class="hidden">
+                <button onclick="startCamera()" id="btnStartCamera" class="px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium transition duration-200 flex items-center gap-2 shadow-md shadow-sky-600/20">
+                    <i class="fa-solid fa-video"></i>
+                    <span class="hidden sm:inline">Buka Kamera</span>
+                </button>
+                <button onclick="document.getElementById('imageInput').click()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition duration-200 flex items-center gap-2 border border-slate-700/60 shadow-sm hover:border-slate-600">
+                    <i class="fa-solid fa-upload text-sky-400"></i>
+                    <span class="hidden sm:inline">Unggah Foto</span>
+                </button>
+                <button onclick="downloadImage()" id="btnDownload" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition duration-200 flex items-center gap-2 shadow-md shadow-emerald-600/30 opacity-50 cursor-not-allowed" disabled>
+                    <i class="fa-solid fa-download"></i>
+                    <span>Unduh</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
+
+        <!-- Left / Top: Camera & Canvas Container -->
+        <section class="flex-1 flex flex-col items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800 p-4 min-h-[380px] sm:min-h-[500px] relative overflow-hidden group shadow-inner">
+            
+            <!-- Default Placeholder State -->
+            <div id="uploadPlaceholder" class="flex flex-col items-center justify-center text-center p-6 max-w-sm">
+                <div class="w-20 h-20 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center mb-4 text-sky-400 text-2xl shadow-inner">
+                    <i class="fa-solid fa-camera"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-200 mb-1">Ambil Foto atau Unggah Berkas</h3>
+                <p class="text-xs text-slate-400 mb-5">Gunakan kamera HP/laptop secara langsung atau pilih foto dari perangkat Anda.</p>
+                <div class="flex gap-2 flex-wrap justify-center">
+                    <button type="button" onclick="startCamera()" class="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md transition flex items-center gap-2">
+                        <i class="fa-solid fa-video"></i> Aktifkan Kamera
+                    </button>
+                    <button type="button" onclick="document.getElementById('imageInput').click()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 transition flex items-center gap-2">
+                        <i class="fa-solid fa-folder-open text-sky-400"></i> Pilih Berkas
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Camera Viewport -->
+            <div id="cameraWrapper" class="relative max-w-full max-h-[65vh] flex flex-col items-center justify-center hidden w-full h-full">
+                <video id="webcam" autoplay playsinline class="max-w-full max-h-[55vh] rounded-lg shadow-2xl object-contain border border-slate-800/80 bg-black"></video>
+                
+                <div class="mt-4 flex items-center gap-3 bg-slate-900/90 backdrop-blur px-4 py-2 rounded-full border border-slate-800 shadow-lg">
+                    <button onclick="capturePhoto()" class="px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-2 transition shadow-md shadow-rose-600/30">
+                        <i class="fa-solid fa-circle text-white animate-pulse"></i> Ambil Foto
+                    </button>
+                    <button onclick="switchCamera()" id="btnSwitchCam" class="px-3 py-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition border border-slate-700 hidden" title="Ganti Kamera">
+                        <i class="fa-solid fa-camera-rotate"></i>
+                    </button>
+                    <button onclick="stopCamera()" class="px-3 py-2 rounded-full bg-slate-800 hover:bg-slate-700 text-rose-400 text-xs transition border border-slate-700" title="Tutup Kamera">
+                        <i class="fa-solid fa-xmark"></i> Tutup
+                    </button>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div id="canvasWrapper" class="relative max-w-full max-h-[65vh] flex items-center justify-center hidden">
+                <canvas id="mainCanvas" class="max-w-full max-h-[60vh] rounded-lg shadow-2xl object-contain border border-slate-800/80 cursor-crosshair" title="Klik untuk atur fokus bokeh, drag stiker, atau gunakan crop!"></canvas>
+            </div>
+
+            <!-- Crop Control Action Overlay -->
+            <div id="cropBar" class="absolute bottom-14 bg-slate-900/95 backdrop-blur border border-amber-500/40 text-xs px-4 py-2 rounded-full hidden flex items-center gap-3 shadow-xl z-20">
+                <span class="text-amber-400 font-semibold"><i class="fa-solid fa-crop mr-1"></i> Mode Potong Foto:</span>
+                <button onclick="applyCrop()" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-full transition">Terapkan Crop</button>
+                <button onclick="cancelCrop()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition">Batal</button>
+            </div>
+
+            <!-- Image Info Overlay -->
+            <div id="imageInfoBar" class="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur border border-slate-800 text-[11px] text-slate-400 px-3 py-1.5 rounded-full hidden flex items-center gap-2">
+                <span id="infoDimensions">0 x 0 px</span>
+                <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
+                <span id="activeFilterName">Original</span>
+            </div>
+
+            <!-- Quick Action Top Buttons -->
+            <div id="topActionBtns" class="absolute top-3 right-3 flex items-center gap-2 hidden">
+                <button onclick="startCamera()" class="bg-slate-900/90 hover:bg-slate-800 backdrop-blur border border-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-camera text-sky-400"></i> Foto Ulang
+                </button>
+                <button id="btnResetAll" onclick="resetFilters()" class="bg-slate-900/90 hover:bg-slate-800 backdrop-blur border border-slate-800 text-slate-300 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-rotate-left text-sky-400"></i> Reset All
+                </button>
+            </div>
+        </section>
+
+        <aside class="w-full lg:w-80 flex flex-col gap-4 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
+
+            <!-- Tab Buttons Sidebar -->
+            <div class="grid grid-cols-4 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs">
+                <button onclick="switchTab('filters')" id="tabBtn-filters" class="py-1.5 rounded-lg bg-sky-600 text-white font-medium transition">Filter</button>
+                <button onclick="switchTab('cropresize')" id="tabBtn-cropresize" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Crop & Size</button>
+                <button onclick="switchTab('stickers')" id="tabBtn-stickers" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Stiker</button>
+                <button onclick="switchTab('adjust')" id="tabBtn-adjust" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Efek</button>
+            </div>
+
+            <!-- TAB 1: Filter Presets -->
+            <div id="tabContent-filters" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm space-y-4">
+                <div class="flex items-center justify-between mb-1">
+                    <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-sky-400"></i> Preset Filter
+                    </h2>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="applyPreset('normal')" class="preset-btn p-2 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition flex items-center justify-between text-xs font-medium text-slate-200" data-filter="normal">
+                        <span>Original</span>
+                        <i class="fa-solid fa-check text-sky-400 text-xs"></i>
+                    </button>
+                    <button onclick="applyPreset('grayscale')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="grayscale">
+                        <span>Grayscale</span>
+                    </button>
+                    <button onclick="applyPreset('bw')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="bw">
+                        <span>Black-White</span>
+                    </button>
+                    <button onclick="applyPreset('invert')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="invert">
+                        <span>Invert</span>
+                    </button>
+                    <button onclick="applyPreset('sepia')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="sepia">
+                        <span>Sepia</span>
+                    </button>
+                    <button onclick="applyPreset('vivid_cool')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="vivid_cool">
+                        <span>Vivid Cool</span>
+                    </button>
+                    <button onclick="applyPreset('dramatic')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="dramatic">
+                        <span>Dramatic</span>
+                    </button>
+                    <button onclick="applyPreset('monocrom')" class="preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300" data-filter="monocrom">
+                        <span>Monocrom</span>
+                    </button>
+                </div>
+
+                <hr class="border-slate-800">
+
+                <div class="space-y-3">
+                    <h3 class="text-xs font-bold text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-shapes text-indigo-400"></i> Transformasi Rotasi & Flip</h3>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onclick="rotateStep(-90)" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-sky-400 transition flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-rotate-left text-xs"></i>
+                            <span class="text-[9px]">-90°</span>
+                        </button>
+                        <button onclick="rotateStep(90)" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-sky-400 transition flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-rotate-right text-xs"></i>
+                            <span class="text-[9px]">+90°</span>
+                        </button>
+                        <button id="btnFlipH" onclick="toggleFlip('h')" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-sky-400 transition flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-arrows-left-right text-xs"></i>
+                            <span class="text-[9px]">Flip H</span>
+                        </button>
+                        <button id="btnFlipV" onclick="toggleFlip('v')" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-sky-400 transition flex flex-col items-center justify-center gap-1">
+                            <i class="fa-solid fa-arrows-up-down text-xs"></i>
+                            <span class="text-[9px]">Flip V</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Crop & Resize -->
+            <div id="tabContent-cropresize" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm hidden space-y-4">
+                <!-- RESIZE SECTION -->
+                <div>
+                    <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2 mb-2">
+                        <i class="fa-solid fa-expand text-sky-400"></i> Ubah Ukuran Citra (Resize)
+                    </h2>
+                    <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                                <label class="text-slate-400 block mb-1">Lebar (Width px)</label>
+                                <input type="number" id="inputResizeWidth" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+                            </div>
+                            <div>
+                                <label class="text-slate-400 block mb-1">Tinggi (Height px)</label>
+                                <input type="number" id="inputResizeHeight" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
+                                <input type="checkbox" id="checkAspectRatio" checked class="rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0">
+                                <span>Kunci Rasio Aspek</span>
+                            </label>
+                            <button onclick="applyResize()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-lg transition">Resize</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="border-slate-800">
+
+                <!-- CROP SECTION -->
+                <div>
+                    <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2 mb-2">
+                        <i class="fa-solid fa-crop text-amber-400"></i> Potong Gambar (Crop)
+                    </h2>
+                    <p class="text-xs text-slate-400 mb-3">Pilih rasio potong lalu seret kotak potong di gambar:</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <button onclick="startCropMode('free')" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-amber-400 transition text-left flex items-center gap-2">
+                            <i class="fa-solid fa-vector-square text-amber-400"></i> Bebas (Free)
+                        </button>
+                        <button onclick="startCropMode('1:1')" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-amber-400 transition text-left flex items-center gap-2">
+                            <i class="fa-solid fa-square text-amber-400"></i> 1:1 Persegi
+                        </button>
+                        <button onclick="startCropMode('16:9')" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-amber-400 transition text-left flex items-center gap-2">
+                            <i class="fa-solid fa-tv text-amber-400"></i> 16:9 Landscape
+                        </button>
+                        <button onclick="startCropMode('9:16')" class="p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-amber-400 transition text-left flex items-center gap-2">
+                            <i class="fa-solid fa-mobile-screen text-amber-400"></i> 9:16 Story/Reels
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: Cute Stickers -->
+            <div id="tabContent-stickers" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm hidden space-y-4">
+                <div class="flex items-center justify-between mb-1">
+                    <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-face-smile-wink text-pink-400"></i> Stiker Lucu
+                    </h2>
+                </div>
+                <p class="text-xs text-slate-400">Klik stiker untuk menambahkannya ke atas foto. Anda dapat menggeser stiker pada foto!</p>
+
+                <!-- Stickers Grid -->
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="addSticker('😎')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">😎</button>
+                    <button onclick="addSticker('👑')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">👑</button>
+                    <button onclick="addSticker('🐱')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🐱</button>
+                    <button onclick="addSticker('🥳')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🥳</button>
+                    <button onclick="addSticker('🎀')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🎀</button>
+                    <button onclick="addSticker('✨')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">✨</button>
+                    <button onclick="addSticker('🥸')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🥸</button>
+                    <button onclick="addSticker('❤️')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">❤️</button>
+                    <button onclick="addSticker('🌸')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🌸</button>
+                    <button onclick="addSticker('🔥')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🔥</button>
+                    <button onclick="addSticker('🌈')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">🌈</button>
+                    <button onclick="addSticker('⭐')" class="text-2xl p-3 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl transition hover:scale-110">⭐</button>
+                </div>
+
+                <!-- Active Sticker Controls -->
+                <div id="stickerControls" class="p-3 bg-slate-950/60 rounded-xl border border-slate-800 hidden space-y-3">
+                    <div class="flex items-center justify-between text-xs font-semibold text-pink-400">
+                        <span>Atur Stiker Aktif</span>
+                        <button onclick="removeSelectedSticker()" class="text-rose-400 hover:text-rose-300"><i class="fa-solid fa-trash-can"></i> Hapus</button>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Ukuran Stiker</label>
+                            <span id="valStickerSize">60px</span>
+                        </div>
+                        <input type="range" id="sliderStickerSize" min="20" max="250" value="60" class="w-full">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-slate-400 mb-1">
+                            <label>Rotasi Stiker</label>
+                            <span id="valStickerRotate">0°</span>
+                        </div>
+                        <input type="range" id="sliderStickerRotate" min="0" max="360" value="0" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: Adjustments & Background Effects -->
+            <div id="tabContent-adjust" class="bg-slate-900/80 rounded-2xl border border-slate-800 p-4 shadow-sm hidden space-y-3">
+                <div class="flex items-center justify-between mb-1">
+                    <h2 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-sky-400"></i> Efek Latar & Penyesuaian
+                    </h2>
+                </div>
+
+                <!-- Background Blur -->
+                <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                    <div class="flex justify-between text-xs text-slate-300 mb-1 font-medium">
+                        <label for="sliderFocusBlur"><i class="fa-solid fa-circle-dot text-sky-400 mr-1"></i> Blur Latar Belakang</label>
+                        <span id="valFocusBlur" class="text-sky-400">0px</span>
+                    </div>
+                    <input type="range" id="sliderFocusBlur" min="0" max="25" value="0" step="1" class="w-full">
+                </div>
+
+                <!-- Bokeh Intensity Control -->
+                <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                    <div class="flex justify-between text-xs text-slate-300 mb-1 font-medium">
+                        <label for="sliderBokeh"><i class="fa-solid fa-sparkles text-amber-400 mr-1"></i> Bokeh Latar Belakang</label>
+                        <span id="valBokeh" class="text-amber-400">0%</span>
+                    </div>
+                    <input type="range" id="sliderBokeh" min="0" max="100" value="0" step="1" class="w-full">
+                </div>
+
+                <!-- Brightness -->
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label for="sliderBrightness">Kecerahan (Brightness)</label>
+                        <span id="valBrightness">100%</span>
+                    </div>
+                    <input type="range" id="sliderBrightness" min="0" max="200" value="100" class="w-full">
+                </div>
+
+                <!-- Contrast -->
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label for="sliderContrast">Kontras (Contrast)</label>
+                        <span id="valContrast">100%</span>
+                    </div>
+                    <input type="range" id="sliderContrast" min="0" max="200" value="100" class="w-full">
+                </div>
+
+                <!-- Saturation -->
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label for="sliderSaturate">Saturasi (Saturation)</label>
+                        <span id="valSaturate">100%</span>
+                    </div>
+                    <input type="range" id="sliderSaturate" min="0" max="200" value="100" class="w-full">
+                </div>
+
+                <!-- Threshold Control -->
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label for="sliderThreshold">Threshold (Black-White)</label>
+                        <span id="valThreshold">128</span>
+                    </div>
+                    <input type="range" id="sliderThreshold" min="0" max="255" value="128" class="w-full">
+                </div>
+
+                <!-- Hue Rotate -->
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <label for="sliderHue">Rotasi Warna (Hue)</label>
+                        <span id="valHue">0°</span>
+                    </div>
+                    <input type="range" id="sliderHue" min="0" max="360" value="0" class="w-full">
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 border border-slate-700 text-slate-200 text-xs px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-sky-400 text-sm"></i>
+        <span id="toastMsg">Pesan notifikasi</span>
+    </div>
+
+    <script>
+        // DOM Elements
+        const imageInput = document.getElementById('imageInput');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const cameraWrapper = document.getElementById('cameraWrapper');
+        const webcam = document.getElementById('webcam');
+        const btnSwitchCam = document.getElementById('btnSwitchCam');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const btnDownload = document.getElementById('btnDownload');
+        const topActionBtns = document.getElementById('topActionBtns');
+        const imageInfoBar = document.getElementById('imageInfoBar');
+        const infoDimensions = document.getElementById('infoDimensions');
+        const activeFilterName = document.getElementById('activeFilterName');
+        const cropBar = document.getElementById('cropBar');
+
+        // Resize Inputs
+        const inputResizeWidth = document.getElementById('inputResizeWidth');
+        const inputResizeHeight = document.getElementById('inputResizeHeight');
+        const checkAspectRatio = document.getElementById('checkAspectRatio');
+
+        // Sticker Controls
+        const stickerControls = document.getElementById('stickerControls');
+        const sliderStickerSize = document.getElementById('sliderStickerSize');
+        const sliderStickerRotate = document.getElementById('sliderStickerRotate');
+        const valStickerSize = document.getElementById('valStickerSize');
+        const valStickerRotate = document.getElementById('valStickerRotate');
+
+        // Sliders
+        const sliderFocusBlur = document.getElementById('sliderFocusBlur');
+        const sliderBokeh = document.getElementById('sliderBokeh');
+        const sliderBrightness = document.getElementById('sliderBrightness');
+        const sliderContrast = document.getElementById('sliderContrast');
+        const sliderSaturate = document.getElementById('sliderSaturate');
+        const sliderThreshold = document.getElementById('sliderThreshold');
+        const sliderHue = document.getElementById('sliderHue');
+
+        // Value Display Labels
+        const valFocusBlur = document.getElementById('valFocusBlur');
+        const valBokeh = document.getElementById('valBokeh');
+        const valBrightness = document.getElementById('valBrightness');
+        const valContrast = document.getElementById('valContrast');
+        const valSaturate = document.getElementById('valSaturate');
+        const valThreshold = document.getElementById('valThreshold');
+        const valHue = document.getElementById('valHue');
+
+        // Buttons Flip
+        const btnFlipH = document.getElementById('btnFlipH');
+        const btnFlipV = document.getElementById('btnFlipV');
+
+        // Global State Variables
+        let currentImage = null;
+        let activePreset = 'normal';
+        let mediaStream = null;
+        let currentFacingMode = 'user';
+        let focusPoint = { x: 0.5, y: 0.5 };
+        
+        let flipH = false;
+        let flipV = false;
+        let currentRotation = 0;
+
+        // Stickers State Array: [{ emoji, x, y, size, rotation }]
+        let stickers = [];
+        let selectedStickerIndex = -1;
+        let isDraggingSticker = false;
+
+        // Crop State Variables
+        let isCropMode = false;
+        let cropBox = { x: 0, y: 0, w: 0, h: 0 };
+        let isDraggingCrop = false;
+        let cropDragStart = { x: 0, y: 0 };
+
+        // Event Listeners for File Input
+        imageInput.addEventListener('change', handleImageUpload);
+
+        // Resize Ratio Logic
+        inputResizeWidth.addEventListener('input', () => {
+            if (checkAspectRatio.checked && currentImage && inputResizeWidth.value) {
+                const ratio = currentImage.height / currentImage.width;
+                inputResizeHeight.value = Math.round(inputResizeWidth.value * ratio);
+            }
+        });
+
+        inputResizeHeight.addEventListener('input', () => {
+            if (checkAspectRatio.checked && currentImage && inputResizeHeight.value) {
+                const ratio = currentImage.width / currentImage.height;
+                inputResizeWidth.value = Math.round(inputResizeHeight.value * ratio);
+            }
+        });
+
+        // Sliders Event Listeners
+        const sliders = [sliderFocusBlur, sliderBokeh, sliderBrightness, sliderContrast, sliderSaturate, sliderThreshold, sliderHue];
+        sliders.forEach(slider => {
+            slider.addEventListener('input', () => {
+                updateSliderLabels();
+                renderImage();
+            });
+        });
+
+        sliderStickerSize.addEventListener('input', () => {
+            if (selectedStickerIndex >= 0 && stickers[selectedStickerIndex]) {
+                stickers[selectedStickerIndex].size = parseInt(sliderStickerSize.value);
+                valStickerSize.innerText = `${sliderStickerSize.value}px`;
+                renderImage();
+            }
+        });
+
+        sliderStickerRotate.addEventListener('input', () => {
+            if (selectedStickerIndex >= 0 && stickers[selectedStickerIndex]) {
+                stickers[selectedStickerIndex].rotation = parseInt(sliderStickerRotate.value);
+                valStickerRotate.innerText = `${sliderStickerRotate.value}°`;
+                renderImage();
+            }
+        });
+
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            ['filters', 'cropresize', 'stickers', 'adjust'].forEach(t => {
+                const btn = document.getElementById(`tabBtn-${t}`);
+                const content = document.getElementById(`tabContent-${t}`);
+                if (t === tabName) {
+                    btn.className = "py-1.5 rounded-lg bg-sky-600 text-white font-medium transition";
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = "py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition";
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        async function startCamera() {
+            stopCameraStream();
+
+            try {
+                const constraints = {
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                };
+
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                webcam.srcObject = mediaStream;
+
+                uploadPlaceholder.classList.add('hidden');
+                canvasWrapper.classList.add('hidden');
+                cameraWrapper.classList.remove('hidden');
+                topActionBtns.classList.add('hidden');
+                imageInfoBar.classList.add('hidden');
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                if (videoDevices.length > 1) {
+                    btnSwitchCam.classList.remove('hidden');
+                }
+
+                showToast('Kamera aktif!');
+            } catch (err) {
+                console.error("Gagal membuka kamera: ", err);
+                showToast('Tidak dapat mengaktifkan kamera.', 'error');
+            }
+        }
+
+        function switchCamera() {
+            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+            startCamera();
+        }
+
+        function stopCameraStream() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+        }
+
+        function stopCamera() {
+            stopCameraStream();
+            cameraWrapper.classList.add('hidden');
+
+            if (currentImage) {
+                canvasWrapper.classList.remove('hidden');
+                topActionBtns.classList.remove('hidden');
+                imageInfoBar.classList.remove('hidden');
+            } else {
+                uploadPlaceholder.classList.remove('hidden');
+            }
+        }
+
+        function capturePhoto() {
+            if (!webcam.videoWidth || !webcam.videoHeight) {
+                showToast('Kamera belum siap.', 'error');
+                return;
+            }
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = webcam.videoWidth;
+            tempCanvas.height = webcam.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            if (currentFacingMode === 'user') {
+                tempCtx.translate(tempCanvas.width, 0);
+                tempCtx.scale(-1, 1);
+            }
+            tempCtx.drawImage(webcam, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            const capturedImg = new Image();
+            capturedImg.onload = function() {
+                stopCameraStream();
+                cameraWrapper.classList.add('hidden');
+                setLoadedImage(capturedImg);
+                showToast('Foto ditangkap!');
+            };
+            capturedImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            stopCameraStream();
+            cameraWrapper.classList.add('hidden');
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    setLoadedImage(img);
+                    showToast('Foto dimuat!');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setLoadedImage(img) {
+            currentImage = img;
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            inputResizeWidth.value = img.width;
+            inputResizeHeight.value = img.height;
+
+            uploadPlaceholder.classList.add('hidden');
+            canvasWrapper.classList.remove('hidden');
+            topActionBtns.classList.remove('hidden');
+            imageInfoBar.classList.remove('hidden');
+            
+            btnDownload.disabled = false;
+            btnDownload.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            infoDimensions.innerText = `${img.width} x ${img.height} px`;
+            focusPoint = { x: 0.5, y: 0.5 };
+            stickers = [];
+            selectedStickerIndex = -1;
+
+            resetFilters(false);
+            renderImage();
+        }
+
+        function applyResize() {
+            if (!currentImage) return;
+            const newW = parseInt(inputResizeWidth.value);
+            const newH = parseInt(inputResizeHeight.value);
+
+            if (!newW || !newH || newW < 10 || newH < 10) {
+                showToast('Ukuran dimensi tidak valid', 'error');
+                return;
+            }
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = newW;
+            tempCanvas.height = newH;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(currentImage, 0, 0, newW, newH);
+
+            const resizedImg = new Image();
+            resizedImg.onload = function() {
+                currentImage = resizedImg;
+                canvas.width = newW;
+                canvas.height = newH;
+                infoDimensions.innerText = `${newW} x ${newH} px`;
+                renderImage();
+                showToast('Ukuran citra berhasil diubah!');
+            };
+            resizedImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        function startCropMode(ratioStr) {
+            if (!currentImage) return;
+            isCropMode = true;
+            cropBar.classList.remove('hidden');
+
+            let w = canvas.width * 0.7;
+            let h = canvas.height * 0.7;
+
+            if (ratioStr === '1:1') {
+                const side = Math.min(w, h);
+                w = side;
+                h = side;
+            } else if (ratioStr === '16:9') {
+                h = w * (9 / 16);
+            } else if (ratioStr === '9:16') {
+                w = h * (9 / 16);
+            }
+
+            cropBox = {
+                x: (canvas.width - w) / 2,
+                y: (canvas.height - h) / 2,
+                w: w,
+                h: h
+            };
+
+            renderImage();
+            showToast('Seret kotak untuk mengatur area crop!');
+        }
+
+        function applyCrop() {
+            if (!isCropMode || !currentImage) return;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = cropBox.w;
+            tempCanvas.height = cropBox.h;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.drawImage(
+                canvas,
+                cropBox.x, cropBox.y, cropBox.w, cropBox.h,
+                0, 0, cropBox.w, cropBox.h
+            );
+
+            const croppedImg = new Image();
+            croppedImg.onload = function() {
+                currentImage = croppedImg;
+                canvas.width = cropBox.w;
+                canvas.height = cropBox.h;
+                inputResizeWidth.value = cropBox.w;
+                inputResizeHeight.value = cropBox.h;
+                infoDimensions.innerText = `${cropBox.w} x ${cropBox.h} px`;
+                
+                isCropMode = false;
+                cropBar.classList.add('hidden');
+                renderImage();
+                showToast('Gambar berhasil dipotong!');
+            };
+            croppedImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        function cancelCrop() {
+            isCropMode = false;
+            cropBar.classList.add('hidden');
+            renderImage();
+        }
+
+        function addSticker(emoji) {
+            if (!currentImage) {
+                showToast('Unggah foto atau buka kamera terlebih dahulu!', 'error');
+                return;
+            }
+
+            const newSticker = {
+                emoji: emoji,
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                size: 80,
+                rotation: 0
+            };
+
+            stickers.push(newSticker);
+            selectedStickerIndex = stickers.length - 1;
+            updateStickerControls();
+            renderImage();
+            showToast(`Stiker ${emoji} ditambahkan!`);
+        }
+
+        function removeSelectedSticker() {
+            if (selectedStickerIndex >= 0) {
+                stickers.splice(selectedStickerIndex, 1);
+                selectedStickerIndex = -1;
+                stickerControls.classList.add('hidden');
+                renderImage();
+                showToast('Stiker dihapus');
+            }
+        }
+
+        function updateStickerControls() {
+            if (selectedStickerIndex >= 0 && stickers[selectedStickerIndex]) {
+                const st = stickers[selectedStickerIndex];
+                sliderStickerSize.value = st.size;
+                valStickerSize.innerText = `${st.size}px`;
+                sliderStickerRotate.value = st.rotation;
+                valStickerRotate.innerText = `${st.rotation}°`;
+                stickerControls.classList.remove('hidden');
+            } else {
+                stickerControls.classList.add('hidden');
+            }
+        }
+
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        canvas.addEventListener('mousedown', handlePointerDown);
+        canvas.addEventListener('mousemove', handlePointerMove);
+        canvas.addEventListener('mouseup', handlePointerUp);
+
+        canvas.addEventListener('touchstart', (e) => { handlePointerDown(e); });
+        canvas.addEventListener('touchmove', (e) => { handlePointerMove(e); });
+        canvas.addEventListener('touchend', (e) => { handlePointerUp(e); });
+
+        function handlePointerDown(e) {
+            if (!currentImage) return;
+            const pos = getCanvasCoords(e);
+
+            if (isCropMode) {
+                if (pos.x >= cropBox.x && pos.x <= cropBox.x + cropBox.w &&
+                    pos.y >= cropBox.y && pos.y <= cropBox.y + cropBox.h) {
+                    isDraggingCrop = true;
+                    cropDragStart = { x: pos.x - cropBox.x, y: pos.y - cropBox.y };
+                }
+                return;
+            }
+
+            // Cek apakah mengklik stiker
+            for (let i = stickers.length - 1; i >= 0; i--) {
+                const st = stickers[i];
+                const half = st.size / 2;
+                if (pos.x >= st.x - half && pos.x <= st.x + half &&
+                    pos.y >= st.y - half && pos.y <= st.y + half) {
+                    selectedStickerIndex = i;
+                    isDraggingSticker = true;
+                    updateStickerControls();
+                    renderImage();
+                    return;
+                }
+            }
+
+            // Jika mengklik lokasi lain di canvas (Set fokus bokeh)
+            focusPoint = {
+                x: pos.x / canvas.width,
+                y: pos.y / canvas.height
+            };
+            selectedStickerIndex = -1;
+            updateStickerControls();
+            renderImage();
+        }
+
+        function handlePointerMove(e) {
+            if (!currentImage) return;
+            const pos = getCanvasCoords(e);
+
+            if (isCropMode && isDraggingCrop) {
+                cropBox.x = Math.max(0, Math.min(canvas.width - cropBox.w, pos.x - cropDragStart.x));
+                cropBox.y = Math.max(0, Math.min(canvas.height - cropBox.h, pos.y - cropDragStart.y));
+                renderImage();
+                return;
+            }
+
+            if (isDraggingSticker && selectedStickerIndex >= 0) {
+                stickers[selectedStickerIndex].x = pos.x;
+                stickers[selectedStickerIndex].y = pos.y;
+                renderImage();
+            }
+        }
+
+        function handlePointerUp() {
+            isDraggingSticker = false;
+            isDraggingCrop = false;
+        }
+
+        function rotateStep(deg) {
+            currentRotation = (currentRotation + deg) % 360;
+            if (currentRotation < 0) currentRotation += 360;
+            renderImage();
+        }
+
+        function toggleFlip(dir) {
+            if (dir === 'h') {
+                flipH = !flipH;
+                btnFlipH.classList.toggle('border-indigo-500', flipH);
+                btnFlipH.classList.toggle('bg-indigo-500/20', flipH);
+            } else if (dir === 'v') {
+                flipV = !flipV;
+                btnFlipV.classList.toggle('border-indigo-500', flipV);
+                btnFlipV.classList.toggle('bg-indigo-500/20', flipV);
+            }
+            renderImage();
+        }
+
+        function updateSliderLabels() {
+            valFocusBlur.innerText = `${sliderFocusBlur.value}px`;
+            valBokeh.innerText = `${sliderBokeh.value}%`;
+            valBrightness.innerText = `${sliderBrightness.value}%`;
+            valContrast.innerText = `${sliderContrast.value}%`;
+            valSaturate.innerText = `${sliderSaturate.value}%`;
+            valThreshold.innerText = `${sliderThreshold.value}`;
+            valHue.innerText = `${sliderHue.value}°`;
+        }
+
+        function applyPreset(presetName) {
+            activePreset = presetName;
+            
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (btn.getAttribute('data-filter') === presetName) {
+                    btn.className = "preset-btn p-2 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition flex items-center justify-between text-xs font-medium text-slate-200";
+                    if (!btn.querySelector('.fa-check')) {
+                        btn.innerHTML += `<i class="fa-solid fa-check text-sky-400 text-xs"></i>`;
+                    }
+                } else {
+                    btn.className = "preset-btn p-2 rounded-xl border border-slate-800 bg-slate-950/40 hover:border-slate-700 text-left transition flex items-center justify-between text-xs font-medium text-slate-300";
+                    const checkIcon = btn.querySelector('.fa-check');
+                    if (checkIcon) checkIcon.remove();
+                }
+            });
+
+            const names = {
+                'normal': 'Original',
+                'grayscale': 'Grayscale',
+                'bw': 'Black & White',
+                'invert': 'Invert',
+                'sepia': 'Sepia',
+                'vivid_cool': 'Vivid Cool',
+                'dramatic': 'Dramatic',
+                'monocrom': 'Monocrom'
+            };
+            activeFilterName.innerText = names[presetName] || 'Original';
+
+            renderImage();
+        }
+
+        function renderImage() {
+            if (!currentImage) return;
+
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const angleRad = (currentRotation * Math.PI) / 180;
+            const blurVal = parseFloat(sliderFocusBlur.value);
+            const bokehVal = parseInt(sliderBokeh.value);
+
+            function drawTransformedImage(customFilterStr = null) {
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(angleRad);
+                ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+
+                if (customFilterStr) {
+                    ctx.filter = customFilterStr;
+                }
+
+                ctx.drawImage(currentImage, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+                ctx.restore();
+            }
+
+            // CSS Filter String
+            let filterStr = `brightness(${sliderBrightness.value}%) contrast(${sliderContrast.value}%) saturate(${sliderSaturate.value}%) hue-rotate(${sliderHue.value}deg)`;
+            if (activePreset === 'grayscale') filterStr += ' grayscale(100%)';
+            if (activePreset === 'invert') filterStr += ' invert(100%)';
+            if (activePreset === 'sepia') filterStr += ' sepia(100%)';
+            if (activePreset === 'vivid_cool') filterStr += ' saturate(160%) hue-rotate(10deg)';
+            if (activePreset === 'dramatic') filterStr += ' contrast(150%) saturate(70%) brightness(90%)';
+
+            if (blurVal > 0 || bokehVal > 0) {
+                // 1. Gambar Latar Belakang Blur
+                let bgFilterStr = filterStr + ` blur(${blurVal}px)`;
+                drawTransformedImage(bgFilterStr);
+
+                // 2. Efek Bokeh Latar Belakang
+                if (bokehVal > 0) {
+                    ctx.save();
+                    const focusPixelX = focusPoint.x * canvas.width;
+                    const focusPixelY = focusPoint.y * canvas.height;
+                    const focusRadius = Math.min(canvas.width, canvas.height) * 0.35;
+                    const numParticles = Math.floor((bokehVal / 100) * 80);
+
+                    let seed = 12345;
+                    function pseudoRandom() {
+                        seed = (seed * 9301 + 49297) % 233280;
+                        return seed / 233280;
+                    }
+
+                    for (let i = 0; i < numParticles; i++) {
+                        const bx = pseudoRandom() * canvas.width;
+                        const by = pseudoRandom() * canvas.height;
+
+                        const distToFocus = Math.hypot(bx - focusPixelX, by - focusPixelY);
+                        if (distToFocus > focusRadius * 0.6) {
+                            const radius = 6 + pseudoRandom() * 28;
+                            const alpha = 0.12 + (bokehVal / 100) * 0.38;
+
+                            ctx.beginPath();
+                            ctx.arc(bx, by, radius, 0, Math.PI * 2);
+                            ctx.fillStyle = `rgba(255, 235, 190, ${alpha})`;
+                            ctx.shadowColor = 'rgba(255, 210, 120, 0.9)';
+                            ctx.shadowBlur = radius * 1.2;
+                            ctx.fill();
+                        }
+                    }
+                    ctx.restore();
+                }
+
+                // 3. Objek Depan Fokus Tajam
+                ctx.save();
+                const focusPixelX = focusPoint.x * canvas.width;
+                const focusPixelY = focusPoint.y * canvas.height;
+                const radius = Math.min(canvas.width, canvas.height) * 0.35;
+
+                ctx.beginPath();
+                const grad = ctx.createRadialGradient(focusPixelX, focusPixelY, radius * 0.1, focusPixelX, focusPixelY, radius);
+                grad.addColorStop(0, 'rgba(0,0,0,1)');
+                grad.addColorStop(0.75, 'rgba(0,0,0,0.85)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.arc(focusPixelX, focusPixelY, radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.globalCompositeOperation = 'source-in';
+                drawTransformedImage(filterStr);
+                ctx.restore();
+
+            } else {
+                drawTransformedImage(filterStr);
+            }
+
+            ctx.restore();
+
+            // Direct Pixel Manipulation untuk Black-White (Threshold) & Monocrom
+            if (activePreset === 'bw' || activePreset === 'monocrom') {
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imgData.data;
+                const thresholdVal = parseInt(sliderThreshold.value);
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+
+                    const avg = 0.299 * r + 0.587 * g + 0.114 * b;
+
+                    if (activePreset === 'bw') {
+                        const bwValue = avg >= thresholdVal ? 255 : 0;
+                        data[i] = bwValue;
+                        data[i + 1] = bwValue;
+                        data[i + 2] = bwValue;
+                    } else if (activePreset === 'monocrom') {
+                        data[i] = avg * 0.35;
+                        data[i + 1] = avg * 0.65;
+                        data[i + 2] = avg * 0.95;
+                    }
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+            }
+
+            // Render Stiker
+            stickers.forEach((st, idx) => {
+                ctx.save();
+                ctx.translate(st.x, st.y);
+                ctx.rotate((st.rotation * Math.PI) / 180);
+                ctx.font = `${st.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(st.emoji, 0, 0);
+
+                // Highlight jika stiker terpilih
+                if (idx === selectedStickerIndex) {
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(-st.size / 2 - 4, -st.size / 2 - 4, st.size + 8, st.size + 8);
+                }
+                ctx.restore();
+            });
+
+            // Render Overlay Crop Box
+            if (isCropMode) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                
+                // Top, Bottom, Left, Right dark mask
+                ctx.fillRect(0, 0, canvas.width, cropBox.y);
+                ctx.fillRect(0, cropBox.y + cropBox.h, canvas.width, canvas.height - (cropBox.y + cropBox.h));
+                ctx.fillRect(0, cropBox.y, cropBox.x, cropBox.h);
+                ctx.fillRect(cropBox.x + cropBox.w, cropBox.y, canvas.width - (cropBox.x + cropBox.w), cropBox.h);
+
+                // Crop border
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cropBox.x, cropBox.y, cropBox.w, cropBox.h);
+
+                // Grid lines inside crop
+                ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(cropBox.x + cropBox.w / 3, cropBox.y);
+                ctx.lineTo(cropBox.x + cropBox.w / 3, cropBox.y + cropBox.h);
+                ctx.moveTo(cropBox.x + (cropBox.w * 2) / 3, cropBox.y);
+                ctx.lineTo(cropBox.x + (cropBox.w * 2) / 3, cropBox.y + cropBox.h);
+
+                ctx.moveTo(cropBox.x, cropBox.y + cropBox.h / 3);
+                ctx.lineTo(cropBox.x + cropBox.w, cropBox.y + cropBox.h / 3);
+                ctx.moveTo(cropBox.x, cropBox.y + (cropBox.h * 2) / 3);
+                ctx.lineTo(cropBox.x + cropBox.w, cropBox.y + (cropBox.h * 2) / 3);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+
+        function resetFilters(showToastMsg = true) {
+            sliderFocusBlur.value = 0;
+            sliderBokeh.value = 0;
+            sliderBrightness.value = 100;
+            sliderContrast.value = 100;
+            sliderSaturate.value = 100;
+            sliderThreshold.value = 128;
+            sliderHue.value = 0;
+            
+            currentRotation = 0;
+            flipH = false;
+            flipV = false;
+            btnFlipH.className = "p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-sky-400 transition flex flex-col items-center justify-center gap-1";
+            btnFlipV.className = "p-2 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-300 hover:text-sky-400 transition flex flex-col items-center justify-center gap-1";
+
+            focusPoint = { x: 0.5, y: 0.5 };
+            stickers = [];
+            selectedStickerIndex = -1;
+            stickerControls.classList.add('hidden');
+
+            updateSliderLabels();
+            applyPreset('normal');
+
+            if (showToastMsg && currentImage) {
+                showToast('Semua filter, efek & stiker direset.');
+            }
+        }
+
+        function downloadImage() {
+            if (!currentImage) return;
+
+            const link = document.createElement('a');
+            link.download = `fotocraft-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            showToast('Foto berhasil diunduh!');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = message;
+
+            if (type === 'error') {
+                toastIcon.className = 'fa-solid fa-circle-exclamation text-rose-400 text-sm';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-check text-sky-400 text-sm';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
