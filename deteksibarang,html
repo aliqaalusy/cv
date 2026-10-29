@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pen & Marker Detection - Computer Vision Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- TensorFlow.js & COCO-SSD Model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Mirroring webcam stream for intuitive interaction */
+        .mirror-mode {
+            transform: scaleX(-1);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30">
+                    <i class="fa-solid fa-pen-nib text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Marker Pen Detector</h1>
+                    <p class="text-xs text-slate-400">Computer Vision Object Detection & Counter System</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span id="modelStatus" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <span class="w-2 h-2 mr-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    Memuat Model...
+                </span>
+                <span id="webcamStatus" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                    <span class="w-2 h-2 mr-1.5 rounded-full bg-slate-500"></span>
+                    Kamera Mati
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left / Top Column: Camera & Visualizer (2 Columns Wide on LG) -->
+        <div class="lg:col-span-2 flex flex-col space-y-4">
+            
+            <!-- Video Container -->
+            <div class="relative bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex items-center justify-center min-h-[360px] md:min-h-[480px]">
+                <!-- Placeholder / Camera Off State -->
+                <div id="videoPlaceholder" class="absolute flex flex-col items-center justify-center text-slate-500 z-10 p-6 text-center">
+                    <i class="fa-solid fa-video-slash text-5xl mb-3 opacity-40"></i>
+                    <p class="text-sm font-medium">Kamera belum aktif.</p>
+                    <p class="text-xs text-slate-600 mt-1">Klik tombol "Mulai Kamera" di bawah untuk mengaktifkan deteksi real-time.</p>
+                </div>
+
+                <!-- Video Element -->
+                <video id="webcam" autoplay playsinline muted class="w-full h-full object-contain hidden mirror-mode"></video>
+                
+                <!-- Overlay Canvas for Bounding Boxes -->
+                <canvas id="overlayCanvas" class="absolute top-0 left-0 w-full h-full object-contain pointer-events-none mirror-mode z-20"></canvas>
+
+                <!-- Floating FPS Badge -->
+                <div class="absolute top-3 left-3 z-30 bg-slate-900/80 backdrop-blur px-3 py-1 rounded-md border border-slate-700 text-xs text-slate-300 font-mono flex items-center space-x-2">
+                    <i class="fa-solid fa-gauge-high text-indigo-400"></i>
+                    <span>FPS: <strong id="fpsCounter" class="text-white">0</strong></span>
+                </div>
+            </div>
+
+            <!-- Controls Toolbar -->
+            <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-3 items-center justify-between">
+                <div class="flex space-x-3">
+                    <button id="btnToggleCam" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-lg shadow-indigo-600/20 transition-all flex items-center space-x-2">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>Mulai Kamera</span>
+                    </button>
+                    <button id="btnSwitchCam" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium rounded-lg transition-all hidden flex items-center space-x-2">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Ubah Kamera</span>
+                    </button>
+                </div>
+
+                <!-- Filter Mode Toggle (Semua Objek vs Spidol Sahaja) -->
+                <div class="flex items-center bg-slate-900/60 p-1 rounded-lg border border-slate-700/50">
+                    <button id="modePenOnly" class="px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white transition-all">
+                        Khusus Spidol / Pen
+                    </button>
+                    <button id="modeAllObjects" class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition-all">
+                        Semua Objek COCO
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Settings, Counter & Analytics Panel -->
+        <div class="flex flex-col space-y-6">
+            
+            <!-- Real-time Counter Card -->
+            <div class="bg-gradient-to-br from-indigo-900/40 via-slate-800/60 to-slate-800/40 border border-indigo-500/20 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 opacity-10 text-indigo-400">
+                    <i class="fa-solid fa-pen-ruler text-9xl"></i>
+                </div>
+                <h2 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">Live Counter</h2>
+                <div class="flex items-baseline space-x-3">
+                    <span id="detectedCount" class="text-5xl font-black text-white tracking-tight">0</span>
+                    <span id="detectedUnit" class="text-sm font-medium text-slate-400">Spidol Terdeteksi</span>
+                </div>
+                <p id="counterDesc" class="text-xs text-slate-400 mt-2">
+                    Menampilkan total objek yang memenuhi ambang batas (threshold) saat ini.
+                </p>
+            </div>
+
+            <!-- Parameters & Threshold Control Panel -->
+            <div class="bg-slate-800/50 border border-slate-800 rounded-2xl p-6 space-y-6 flex-1">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wide flex items-center space-x-2">
+                        <i class="fa-solid fa-sliders text-indigo-400"></i>
+                        <span>Pengaturan Vision Algorithm</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Sesuaikan tingkat sensitivitas algoritma deteksi komputer secara real-time.</p>
+                </div>
+
+                <div class="space-y-5">
+                    <!-- Detection / Confidence Threshold Slider -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderConfidence" class="font-semibold text-slate-300">
+                                Confidence Threshold
+                            </label>
+                            <span id="confidenceVal" class="font-mono text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2 py-0.5 rounded">0.40</span>
+                        </div>
+                        <input id="sliderConfidence" type="range" min="0.10" max="0.95" step="0.05" value="0.40" 
+                            class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <p class="text-[11px] text-slate-500">
+                            Min. batas keyakinan model untuk mengonfirmasi keberadaan objek.
+                        </p>
+                    </div>
+
+                    <!-- Segmentation / IoU Threshold Slider -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <label for="sliderIoU" class="font-semibold text-slate-300">
+                                IoU / Overlap Threshold
+                            </label>
+                            <span id="iouVal" class="font-mono text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2 py-0.5 rounded">0.45</span>
+                        </div>
+                        <input id="sliderIoU" type="range" min="0.10" max="0.90" step="0.05" value="0.45" 
+                            class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <p class="text-[11px] text-slate-500">
+                            Ambang toleransi Non-Maximum Suppression (NMS) untuk menghindari deteksi ganda/tumpang tindih.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Detection List / Stats Box -->
+                <div class="border-t border-slate-700/60 pt-4 space-y-3">
+                    <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Log Deteksi Aktif</h4>
+                    <div id="detectionLog" class="max-h-36 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                        <p class="text-slate-500 italic text-center py-2">Belum ada objek terdeteksi</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Notification Toast (Hidden by Default) -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-800 border border-slate-700 text-slate-200 px-4 py-3 rounded-xl shadow-2xl transition-opacity duration-300 opacity-0 pointer-events-none z-50 flex items-center space-x-3">
+        <i id="toastIcon" class="fa-solid fa-circle-info text-indigo-400"></i>
+        <span id="toastMsg" class="text-xs font-medium">Pesan notifikasi</span>
+    </div>
+
+    <!-- Application Logic Script -->
+    <script>
+        // App State
+        let model = null;
+        let isWebcamRunning = false;
+        let videoStream = null;
+        let animationFrameId = null;
+        let penOnlyFilter = true;
+
+        // Vision Parameters
+        let minConfidence = 0.40;
+        let iouThreshold = 0.45;
+
+        // Performance Metering
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+
+        // DOM Elements
+        const webcam = document.getElementById('webcam');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const ctx = overlayCanvas.getContext('2d');
+        const btnToggleCam = document.getElementById('btnToggleCam');
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const modelStatus = document.getElementById('modelStatus');
+        const webcamStatus = document.getElementById('webcamStatus');
+        const detectedCountEl = document.getElementById('detectedCount');
+        const fpsCounter = document.getElementById('fpsCounter');
+        const sliderConfidence = document.getElementById('sliderConfidence');
+        const confidenceVal = document.getElementById('confidenceVal');
+        const sliderIoU = document.getElementById('sliderIoU');
+        const iouVal = document.getElementById('iouVal');
+        const detectionLog = document.getElementById('detectionLog');
+        const modePenOnly = document.getElementById('modePenOnly');
+        const modeAllObjects = document.getElementById('modeAllObjects');
+
+        // Target COCO-SSD categories that match markers, pens, utensils, or stick-like office objects
+        const PEN_TARGET_CLASSES = ['pen', 'pencil', 'marker', 'toothbrush', 'scissors', 'knife', 'spoon', 'fork'];
+
+        // Load COCO-SSD Model on startup
+        async function loadModel() {
+            try {
+                showToast("Memuat model Computer Vision (COCO-SSD MobileNet)...", "info");
+                // Load model with MobileNetV2 architecture
+                model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+                
+                modelStatus.className = "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                modelStatus.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full bg-emerald-400"></span> Model Siap`;
+                showToast("Model berhasil dimuat! Siap melakukan deteksi.", "success");
+            } catch (err) {
+                console.error("Gagal memuat model:", err);
+                modelStatus.className = "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20";
+                modelStatus.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full bg-rose-400"></span> Gagal Memuat Model`;
+                showToast("Gagal memuat model TensorFlow.", "error");
+            }
+        }
+
+        // Initialize Webcam Stream
+        async function startWebcam() {
+            if (!model) {
+                showToast("Tunggu hingga model selesai dimuat!", "warning");
+                return;
+            }
+
+            try {
+                const constraints = {
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    },
+                    audio: false
+                };
+
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                webcam.srcObject = videoStream;
+
+                webcam.onloadedmetadata = () => {
+                    webcam.play();
+                    webcam.classList.remove('hidden');
+                    videoPlaceholder.classList.add('hidden');
+                    
+                    // Match Canvas Dimensions to Video
+                    overlayCanvas.width = webcam.videoWidth;
+                    overlayCanvas.height = webcam.videoHeight;
+
+                    isWebcamRunning = true;
+                    updateCamUI(true);
+                    showToast("Kamera berhasil diaktifkan.", "success");
+
+                    // Start Detection Loop
+                    detectFrame();
+                };
+            } catch (err) {
+                console.error("Akses kamera ditolak atau tidak tersedia:", err);
+                showToast("Tidak dapat mengaktifkan kamera. Pastikan izin diberikan.", "error");
+            }
+        }
+
+        // Stop Webcam Stream
+        function stopWebcam() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+
+            isWebcamRunning = false;
+            webcam.classList.add('hidden');
+            videoPlaceholder.classList.remove('hidden');
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            detectedCountEl.textContent = "0";
+            fpsCounter.textContent = "0";
+            detectionLog.innerHTML = `<p class="text-slate-500 italic text-center py-2">Kamera dimatikan</p>`;
+
+            updateCamUI(false);
+            showToast("Kamera dimatikan.", "info");
+        }
+
+        // Real-time Frame Detection Loop
+        async function detectFrame() {
+            if (!isWebcamRunning) return;
+
+            // FPS Calculation
+            const now = performance.now();
+            frameCount++;
+            if (now - lastFrameTime >= 1000) {
+                fpsCounter.textContent = frameCount;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+
+            // Perform Object Detection
+            // COCO-SSD detect method takes maxNumBoxes and minScore
+            const predictions = await model.detect(webcam, 20, minConfidence);
+
+            // Clear previous overlays
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            // Filter & Process predictions
+            let validDetections = predictions.filter(pred => {
+                // Apply confidence threshold
+                if (pred.score < minConfidence) return false;
+
+                // Apply Pen/Marker Filter if active
+                if (penOnlyFilter) {
+                    const label = pred.class.toLowerCase();
+                    return PEN_TARGET_CLASSES.some(target => label.includes(target));
+                }
+                return true;
+            });
+
+            // Apply custom IoU (Intersection over Union) overlap suppression
+            validDetections = applyIoUSuppression(validDetections, iouThreshold);
+
+            // Draw bounding boxes & update logs
+            drawBoundingBoxes(validDetections);
+            updateDetectionLog(validDetections);
+
+            // Continue detection loop
+            animationFrameId = requestAnimationFrame(detectFrame);
+        }
+
+        // Custom Non-Maximum Suppression based on IoU threshold
+        function applyIoUSuppression(boxes, threshold) {
+            if (boxes.length === 0) return [];
+
+            // Sort boxes by score descending
+            boxes.sort((a, b) => b.score - a.score);
+
+            const selected = [];
+            const active = new Array(boxes.length).fill(true);
+
+            for (let i = 0; i < boxes.length; i++) {
+                if (!active[i]) continue;
+
+                selected.push(boxes[i]);
+
+                for (let j = i + 1; j < boxes.length; j++) {
+                    if (!active[j]) continue;
+
+                    const iou = calculateIoU(boxes[i].bbox, boxes[j].bbox);
+                    if (iou > threshold) {
+                        active[j] = false; // Suppress overlapping box
+                    }
+                }
+            }
+
+            return selected;
+        }
+
+        // Calculate IoU (Intersection over Union) between two bounding boxes [x, y, width, height]
+        function calculateIoU(boxA, boxB) {
+            const [xA, yA, wA, hA] = boxA;
+            const [xB, yB, wB, hB] = boxB;
+
+            const x1 = Math.max(xA, xB);
+            const y1 = Math.max(yA, yB);
+            const x2 = Math.min(xA + wA, xB + wB);
+            const y2 = Math.min(yA + hA, yB + hB);
+
+            const intersectionWidth = Math.max(0, x2 - x1);
+            const intersectionHeight = Math.max(0, y2 - y1);
+            const intersectionArea = intersectionWidth * intersectionHeight;
+
+            const areaA = wA * hA;
+            const areaB = wB * hB;
+
+            const unionArea = areaA + areaB - intersectionArea;
+
+            return unionArea === 0 ? 0 : intersectionArea / unionArea;
+        }
+
+        // Visualizer: Render Bounding Box and Labels on Canvas
+        function drawBoundingBoxes(detections) {
+            detectedCountEl.textContent = detections.length;
+
+            detections.forEach((det, index) => {
+                const [x, y, width, height] = det.bbox;
+                const scorePercent = Math.round(det.score * 100);
+                const labelName = penOnlyFilter ? "Spidol / Pen" : det.class;
+
+                // Futuristic Visual Style
+                const primaryColor = '#6366f1'; // Indigo
+                const accentBg = 'rgba(99, 102, 241, 0.2)';
+
+                // Draw Mask / Segment Box Fill
+                ctx.fillStyle = accentBg;
+                ctx.fillRect(x, y, width, height);
+
+                // Draw Bounding Box Corners / Lines
+                ctx.strokeStyle = primaryColor;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, width, height);
+
+                // Corner Accents for High-tech UI look
+                const cornerLen = Math.min(width, height) * 0.15;
+                ctx.strokeStyle = '#38bdf8'; // Sky blue accent
+                ctx.lineWidth = 4;
+
+                // Top-Left Corner
+                ctx.beginPath();
+                ctx.moveTo(x, y + cornerLen);
+                ctx.lineTo(x, y);
+                ctx.lineTo(x + cornerLen, y);
+                ctx.stroke();
+
+                // Draw Label Badge
+                const labelText = `#${index + 1} ${labelName} (${scorePercent}%)`;
+                ctx.font = 'bold 13px Inter, sans-serif';
+                const textWidth = ctx.measureText(labelText).width;
+                const badgeHeight = 24;
+
+                // Badge background
+                ctx.fillStyle = '#4f46e5';
+                ctx.fillRect(x, y > badgeHeight ? y - badgeHeight : y, textWidth + 16, badgeHeight);
+
+                // Badge Text
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(labelText, x + 8, y > badgeHeight ? y - 7 : y + 16);
+            });
+        }
+
+        // Render Detection Log List
+        function updateDetectionLog(detections) {
+            if (detections.length === 0) {
+                detectionLog.innerHTML = `<p class="text-slate-500 italic text-center py-2">Tidak ada spidol terdeteksi</p>`;
+                return;
+            }
+
+            detectionLog.innerHTML = detections.map((det, i) => `
+                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-700/40">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                        <span class="font-semibold text-slate-200">#${i + 1} ${penOnlyFilter ? 'Spidol / Pen' : det.class}</span>
+                    </div>
+                    <span class="font-mono text-indigo-400 bg-indigo-950/80 px-2 py-0.5 rounded text-[10px]">
+                        ${Math.round(det.score * 100)}%
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // Toggle UI state for camera button
+        function updateCamUI(running) {
+            if (running) {
+                btnToggleCam.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'shadow-indigo-600/20');
+                btnToggleCam.classList.add('bg-rose-600', 'hover:bg-rose-500', 'shadow-rose-600/20');
+                btnToggleCam.innerHTML = `<i class="fa-solid fa-video-slash"></i><span>Hentikan Kamera</span>`;
+
+                webcamStatus.className = "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                webcamStatus.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Streaming Live`;
+            } else {
+                btnToggleCam.classList.remove('bg-rose-600', 'hover:bg-rose-500', 'shadow-rose-600/20');
+                btnToggleCam.classList.add('bg-indigo-600', 'hover:bg-indigo-500', 'shadow-indigo-600/20');
+                btnToggleCam.innerHTML = `<i class="fa-solid fa-camera"></i><span>Mulai Kamera</span>`;
+
+                webcamStatus.className = "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700";
+                webcamStatus.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full bg-slate-500"></span> Kamera Mati`;
+            }
+        }
+
+        // Notification Toast Helper
+        function showToast(message, type = "info") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = message;
+
+            if (type === "success") {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400";
+            } else if (type === "error") {
+                toastIcon.className = "fa-solid fa-circle-xmark text-rose-400";
+            } else if (type === "warning") {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-400";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-info text-indigo-400";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Event Listeners
+        btnToggleCam.addEventListener('click', () => {
+            if (isWebcamRunning) {
+                stopWebcam();
+            } else {
+                startWebcam();
+            }
+        });
+
+        // Dynamic Confidence Threshold Slider Listener
+        sliderConfidence.addEventListener('input', (e) => {
+            minConfidence = parseFloat(e.target.value);
+            confidenceVal.textContent = minConfidence.toFixed(2);
+        });
+
+        // Dynamic IoU Threshold Slider Listener
+        sliderIoU.addEventListener('input', (e) => {
+            iouThreshold = parseFloat(e.target.value);
+            iouVal.textContent = iouThreshold.toFixed(2);
+        });
+
+        // Filter Mode Buttons
+        modePenOnly.addEventListener('click', () => {
+            penOnlyFilter = true;
+            modePenOnly.className = "px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white transition-all";
+            modeAllObjects.className = "px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition-all";
+            document.getElementById('detectedUnit').textContent = "Spidol Terdeteksi";
+        });
+
+        modeAllObjects.addEventListener('click', () => {
+            penOnlyFilter = false;
+            modeAllObjects.className = "px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white transition-all";
+            modePenOnly.className = "px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition-all";
+            document.getElementById('detectedUnit').textContent = "Objek Terdeteksi";
+        });
+
+        // Initialize App on Page Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadModel();
+        });
+    </script>
+</body>
+</html>
