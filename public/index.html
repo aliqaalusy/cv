@@ -899,6 +899,7 @@
         currentRegSnapshotData = { photoBase64: null, landmarksVector: null };
         
         updateRegisteredCount();
+        renderRegisteredMembers();
       } catch (err) {
         console.error("Save Member Error:", err);
         showAlert("Gagal menyimpan anggota. NIP/ID mungkin sudah digunakan.", "error");
@@ -950,7 +951,7 @@
 
       container.innerHTML = members.map(m => `
         <div class="bg-slate-900/60 rounded-xl border border-slate-700/60 p-4 flex flex-col items-center text-center gap-3 relative group">
-          <button onclick="handleDeleteMember(${m.id})" title="Hapus Anggota" class="absolute top-2 right-2 text-slate-500 hover:text-rose-400 transition p-1">
+          <button onclick="handleDeleteMember(${m.id}')" title="Hapus Anggota" class="absolute top-2 right-2 text-slate-500 hover:text-rose-400 transition p-1">
             <i class="fa-solid fa-trash-can"></i>
           </button>
           <img src="${m.photo || 'https://via.placeholder.com/80'}" class="w-20 h-20 rounded-full object-cover border-2 border-blue-500/40" alt="${escapeHtml(m.name)}">
