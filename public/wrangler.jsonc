@@ -1,9 +1,19 @@
 {
   "name": "cv"
+  "main": "./worker.js",
   "compatibility_date":
 "2026-11-12",
   "assets": {
-    "directory": "."
+    "directory": "./public"
     "binding": "ASSETS"
-  }
+  },
+  "d1_database": [
+    {
+    "binding": "DB",
+    "database_name":
+"presensi-wajah-db",
+    "database_id":
+"d303558c-caaf-490c-a76a-9ef8c40f333e"
+    }
+  ]
 }
