@@ -345,15 +345,29 @@
     }
 
     // DB Operations: Members
-    function saveMemberToDB(memberData) {
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['members'], 'readwrite');
-        const store = transaction.objectStore('members');
-        const request = store.add(memberData);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = (e) => reject(e.target.error);
-      });
-    }
+    async function saveMemberToDB(memberData) {
+  const response = await fetch('/api/members', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      id: memberData.id,
+      name: memberData.name,
+      nip: memberData.nip,
+      dept: memberData.dept,
+      photo: memberData.photo,
+      landmarksVector: memberData.landmarksVector,
+      createdAt: memberData.createdAt
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('Gagal menyimpan anggota ke database');
+  }
+
+  return await response.json();
+}
 
     function getAllMembersFromDB() {
       return new Promise((resolve, reject) => {
