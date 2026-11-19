@@ -35,12 +35,15 @@
     <!-- Preset & Quick Actions -->
     <div class="mb-6 flex flex-wrap gap-2 items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
         <span class="text-xs font-semibold uppercase text-slate-500">Preset Sampel Pengujian:</span>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
             <button id="btnSampleSame" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium rounded transition" disabled>
-                Uji Orang Sama (Prediksi: Match)
+                Uji Identik (Match)
+            </button>
+            <button id="btnSampleTransform" class="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-semibold rounded transition" disabled>
+                Uji Foto Sama + Zoom & Rotasi (Prediksi: Match)
             </button>
             <button id="btnSampleDiff" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium rounded transition" disabled>
-                Uji Orang Beda (Prediksi: No Match)
+                Uji Orang Beda (No Match)
             </button>
         </div>
     </div>
@@ -134,11 +137,12 @@
         status.className = 'px-4 py-3 bg-emerald-50 text-emerald-800 rounded-lg font-medium text-sm mb-6 flex items-center space-x-2 border border-emerald-200';
         status.innerHTML = `
             <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            <span>Pustaka OpenCV.js Siap! Silakan unggah gambar atau gunakan tombol sampel di atas.</span>
+            <span>Pustaka OpenCV.js Siap! Ekstraksi fitur Rotation & Scale Invariant aktif.</span>
         `;
         document.getElementById('inputA').disabled = false;
         document.getElementById('inputB').disabled = false;
         document.getElementById('btnSampleSame').disabled = false;
+        document.getElementById('btnSampleTransform').disabled = false;
         document.getElementById('btnSampleDiff').disabled = false;
     }
 
@@ -147,26 +151,37 @@
         document.getElementById('threshVal').textContent = parseFloat(e.target.value).toFixed(2);
     });
 
-    // Generate Synthetic Face Images for Testing Presets
+    // Generate Synthetic Face Images for Testing Presets (termasuk simulasi Zoom & Rotasi)
     function generateSyntheticFace(canvasId, type) {
         const canvas = document.getElementById(canvasId);
         const ctx = canvas.getContext('2d');
         canvas.width = 200;
         canvas.height = 200;
 
+        ctx.save();
+        ctx.clearRect(0, 0, 200, 200);
+
         // Background
-        ctx.fillStyle = type === 'A' || type === 'A2' ? '#334155' : '#475569';
+        ctx.fillStyle = type === 'B_diff' ? '#475569' : '#334155';
         ctx.fillRect(0, 0, 200, 200);
 
-        // Cluttered Background Noise (Simulasi latar ramai)
+        // Cluttered Background Noise (Latar ramai)
         ctx.fillStyle = '#64748b';
         for(let i = 0; i < 15; i++) {
             ctx.fillRect((i*17)%200, (i*23)%200, 25, 25);
         }
 
+        // Terapkan Transformasi Rotasi & Zoom untuk sampel pengujian
+        if (type === 'A_transformed') {
+            ctx.translate(100, 100);
+            ctx.rotate((25 * Math.PI) / 180); // Rotasi 25 derajat
+            ctx.scale(1.25, 1.25);            // Zoom in 125%
+            ctx.translate(-100, -100);
+        }
+
+        const isPerson1 = type !== 'B_diff';
         // Face Base ROI
-        const isPerson1 = type === 'A' || type === 'A2';
-        ctx.fillStyle = isPerson1 ? '#f87171' : '#fbbf24'; // Reddish skin tone vs Golden skin tone
+        ctx.fillStyle = isPerson1 ? '#f87171' : '#fbbf24';
         ctx.beginPath();
         ctx.ellipse(100, 105, isPerson1 ? 45 : 40, isPerson1 ? 55 : 50, 0, 0, 2 * Math.PI);
         ctx.fill();
@@ -190,8 +205,10 @@
         }
         ctx.stroke();
 
-        if (type === 'A' || type === 'A2') imgLoadedA = true;
-        if (type === 'B' || type === 'A2') imgLoadedB = true;
+        ctx.restore();
+
+        if (type === 'A' || type === 'A_same' || type === 'A_transformed') imgLoadedA = true;
+        if (type === 'B_diff' || type === 'A_same' || type === 'A_transformed') imgLoadedB = true;
 
         if (imgLoadedA && imgLoadedB) {
             document.getElementById('btnVerify').disabled = false;
@@ -200,13 +217,19 @@
 
     document.getElementById('btnSampleSame').addEventListener('click', () => {
         generateSyntheticFace('canvasA', 'A');
-        generateSyntheticFace('canvasB', 'A2');
+        generateSyntheticFace('canvasB', 'A_same');
+        document.getElementById('btnVerify').click();
+    });
+
+    document.getElementById('btnSampleTransform').addEventListener('click', () => {
+        generateSyntheticFace('canvasA', 'A');
+        generateSyntheticFace('canvasB', 'A_transformed');
         document.getElementById('btnVerify').click();
     });
 
     document.getElementById('btnSampleDiff').addEventListener('click', () => {
         generateSyntheticFace('canvasA', 'A');
-        generateSyntheticFace('canvasB', 'B');
+        generateSyntheticFace('canvasB', 'B_diff');
         document.getElementById('btnVerify').click();
     });
 
@@ -235,7 +258,22 @@
     loadImageToCanvas(document.getElementById('inputB'), 'canvasB', () => imgLoadedB = true);
 
     /**
-     * EXTRACT LBP (Local Binary Patterns) & Draw Visual Canvas
+     * Hitung Minimum Circular Shift untuk Rotational-Invariant LBP (riLBP)
+     */
+    function getMinRotationLBP(code) {
+        let minCode = code;
+        for (let i = 1; i < 8; i++) {
+            // Circular bitwise shift left 8-bit
+            code = ((code << 1) | (code >> 7)) & 0xFF;
+            if (code < minCode) {
+                minCode = code;
+            }
+        }
+        return minCode;
+    }
+
+    /**
+     * EXTRACT ROTATION-INVARIANT LBP (riLBP) & Draw Visual Canvas
      */
     function computeLBP(grayMat, vizCanvasId) {
         let rows = grayMat.rows;
@@ -257,8 +295,11 @@
                 if (grayMat.ucharAt(r + 1, c - 1) >= center) code |= (1 << 1);
                 if (grayMat.ucharAt(r,     c - 1) >= center) code |= (1 << 0);
 
-                lbpMat.ucharPtr(r, c)[0] = code;
-                hist[code]++;
+                // Dapatkan nilai invariant terhadap rotasi (riLBP)
+                let riCode = getMinRotationLBP(code);
+
+                lbpMat.ucharPtr(r, c)[0] = riCode;
+                hist[riCode]++;
             }
         }
 
@@ -277,7 +318,7 @@
     }
 
     /**
-     * MAIN EXTRACTOR: ROI Detection, RGB Histogram, Hu Moments, & LBP
+     * MAIN EXTRACTOR: ROI Detection + Standardized Resize (Scale-Invariant), RGB Histogram, Hu Moments, & riLBP
      */
     function ekstrakFiturObjek(canvasId, lbpCanvasId) {
         let src = cv.imread(canvasId);
@@ -285,7 +326,7 @@
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
         cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
 
-        // Thresholding for ROI Detection
+        // Thresholding untuk Segmentasi ROI
         let binary = new cv.Mat();
         cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
 
@@ -320,7 +361,6 @@
             let m = cv.moments(konturUtama, false);
             
             // Perhitungan 7 Momen Hu secara manual & presisi dari momen terpusat ternormalisasi (eta)
-            // Menghindari TypeError akibat variasi nama binding OpenCV.js di berbagai versi CDN
             let invM00 = m.m00 !== 0 ? 1.0 / m.m00 : 0;
             let eta20 = m.mu20 * Math.pow(invM00, 2.0);
             let eta02 = m.mu02 * Math.pow(invM00, 2.0);
@@ -342,7 +382,7 @@
             h[6] = (3 * eta21 - eta30) * (eta30 + eta12) * (Math.pow(eta30 + eta12, 2) - 3 * Math.pow(eta21 + eta03, 2)) +
                    (3 * eta12 - eta03) * (eta21 + eta03) * (3 * Math.pow(eta30 + eta12, 2) - Math.pow(eta21 + eta03, 2));
 
-            // Log-transform (-sign(h) * log10(|h|)) untuk menstabilkan skala fitur
+            // Log-transform (-sign(h) * log10(|h|))
             for (let i = 0; i < 7; i++) {
                 let val = h[i];
                 huVec[i] = (val !== 0 && !isNaN(val)) ? -Math.sign(val) * Math.log10(Math.abs(val)) : 0;
@@ -350,8 +390,15 @@
         }
 
         // Crop ROI Mat
-        let roiSrc = src.roi(roiRect);
-        let roiGray = gray.roi(roiRect);
+        let rawRoiSrc = src.roi(roiRect);
+        let rawRoiGray = gray.roi(roiRect);
+
+        // NORMALISASI UKURAN ROI TERSTANDARISASI (Membuat fitur Scale-Invariant terhadap Zoom)
+        let stdSize = new cv.Size(128, 128);
+        let roiSrc = new cv.Mat();
+        let roiGray = new cv.Mat();
+        cv.resize(rawRoiSrc, roiSrc, stdSize, 0, 0, cv.INTER_AREA);
+        cv.resize(rawRoiGray, roiGray, stdSize, 0, 0, cv.INTER_AREA);
 
         // 1. RGB Histogram (64 Bins/Channel)
         let rgb = new cv.Mat();
@@ -377,12 +424,12 @@
             chVec.delete();
         }
 
-        // 2. Texture Feature: LBP
+        // 2. Texture Feature: riLBP
         let lbpVec = computeLBP(roiGray, lbpCanvasId);
 
-        // Memory Management Cleanup
+        // Cleanup
         src.delete(); gray.delete(); binary.delete(); contours.delete(); hierarchy.delete();
-        roiSrc.delete(); roiGray.delete(); rgb.delete(); channels.delete(); mask.delete();
+        rawRoiSrc.delete(); rawRoiGray.delete(); roiSrc.delete(); roiGray.delete(); rgb.delete(); channels.delete(); mask.delete();
 
         return { histVec, huVec, lbpVec, bentukInfo };
     }
@@ -406,7 +453,7 @@
         const skorBentuk = ncc(fiturA.huVec, fiturB.huVec);
         const skorLBP = ncc(fiturA.lbpVec, fiturB.lbpVec);
 
-        // Feature Fusion: 50% LBP + 30% Warna + 20% Momen Hu
+        // Feature Fusion: 50% Rotation-Invariant LBP + 30% Warna + 20% Momen Hu Invariant
         const skorGabungan = (0.50 * skorLBP) + (0.30 * skorWarna) + (0.20 * skorBentuk);
         const keputusan = skorGabungan >= ambang ? 'COCOK' : 'TIDAK COCOK';
 
@@ -431,7 +478,7 @@
         if (hasil.keputusan === 'COCOK') {
             box.classList.add('bg-emerald-50', 'border-emerald-500');
             decisionText.className = 'text-xl font-bold text-emerald-900';
-            decisionText.textContent = 'Hasil Verifikasi: COCOK (Identik)';
+            decisionText.textContent = 'Hasil Verifikasi: COCOK (Identik / Invariant Transformation)';
             decisionBadge.className = 'px-3 py-1 text-xs font-bold uppercase rounded-full bg-emerald-200 text-emerald-800';
             decisionBadge.textContent = 'Match';
         } else {
@@ -446,21 +493,21 @@
 
         tbody.innerHTML = `
             <tr class="hover:bg-white/60">
-                <td class="p-2.5 font-semibold text-slate-800">LBP (Local Binary Patterns)</td>
-                <td class="p-2.5">256 bin histogram (Tekstur ROI)</td>
-                <td class="p-2.5">256 bin histogram (Tekstur ROI)</td>
+                <td class="p-2.5 font-semibold text-slate-800">Rotation-Invariant LBP (riLBP)</td>
+                <td class="p-2.5">256 bin (Standardized 128x128 ROI)</td>
+                <td class="p-2.5">256 bin (Standardized 128x128 ROI)</td>
                 <td class="p-2.5 font-bold text-blue-600">${hasil.skorLBP.toFixed(4)}</td>
                 <td class="p-2.5">50%</td>
             </tr>
             <tr class="hover:bg-white/60">
                 <td class="p-2.5 font-semibold text-slate-800">Histogram Warna (RGB)</td>
-                <td class="p-2.5">Vektor 192-dim (Warna ROI)</td>
-                <td class="p-2.5">Vektor 192-dim (Warna ROI)</td>
+                <td class="p-2.5">Vektor 192-dim (Standardized ROI)</td>
+                <td class="p-2.5">Vektor 192-dim (Standardized ROI)</td>
                 <td class="p-2.5 font-bold text-blue-600">${hasil.skorWarna.toFixed(4)}</td>
                 <td class="p-2.5">30%</td>
             </tr>
             <tr class="hover:bg-white/60">
-                <td class="p-2.5 font-semibold text-slate-800">Momen Hu (Shape Invariants)</td>
+                <td class="p-2.5 font-semibold text-slate-800">Momen Hu (Scale & Rotation Invariant)</td>
                 <td class="p-2.5">[${fiturA.huVec.slice(0,3).map(v => v.toFixed(2)).join(', ')}, ...]</td>
                 <td class="p-2.5">[${fiturB.huVec.slice(0,3).map(v => v.toFixed(2)).join(', ')}, ...]</td>
                 <td class="p-2.5 font-bold text-blue-600">${hasil.skorBentuk.toFixed(4)}</td>
