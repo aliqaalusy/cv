@@ -1,48 +1,480 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Face Matching — ROI + LBP</title>
-<style>
-*{box-sizing:border-box}body{font-family:system-ui,Arial;background:#f3f6fb;color:#172033;margin:0;padding:22px}.wrap{max-width:1050px;margin:auto;background:white;padding:24px;border-radius:16px;box-shadow:0 8px 28px #0001}h1{margin:0 0 6px}p{color:#5b6678}.status{padding:12px;border-radius:8px;background:#fff3cd;color:#775500;margin:14px 0}.status.ok{background:#e3f8e8;color:#176536}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{border:1px solid #dce3ed;border-radius:12px;padding:14px;background:#f8fafc;text-align:center}canvas{width:100%;max-height:320px;object-fit:contain;background:#101827;margin-top:10px;border-radius:8px}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:#eef2f8;padding:15px;border-radius:10px;margin:18px 0}button{border:0;border-radius:8px;background:#315ee8;color:white;padding:11px 16px;font-weight:700;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}input[type=range]{width:180px}.result{display:none;margin-top:16px;border:2px solid #cbd5e1;border-radius:10px;padding:16px}.match{background:#ecfdf3;border-color:#22a05a}.nomatch{background:#fff1f2;border-color:#e34b5f}table{width:100%;border-collapse:collapse;margin-top:12px}td,th{border:1px solid #d5dce7;padding:9px;text-align:left}th{background:#e9eef6}.small{font-size:13px;color:#64748b}.warning{color:#9a6700;font-size:13px;margin-top:8px}@media(max-width:700px){.grid{grid-template-columns:1fr}body{padding:10px}.wrap{padding:15px}}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Praktikum P9: Face Match & Deskriptor Objek (LBP + ROI)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        canvas { background-color: #0f172a; border-radius: 0.5rem; }
+    </style>
 </head>
-<body><div class="wrap">
-<h1>Face Matching — ROI Wajah + LBP</h1><p>Perbandingan dua foto menggunakan Histogram RGB, Local Binary Pattern (LBP), dan Momen Hu pada area wajah.</p>
-<div id="status" class="status">Memuat OpenCV.js dan classifier wajah…</div>
-<div class="grid">
- <div class="card"><b>Foto Referensi (A)</b><br><input id="fileA" type="file" accept="image/*" disabled><canvas id="canvasA"></canvas><div id="infoA" class="small">Belum ada gambar</div></div>
- <div class="card"><b>Foto Uji (B)</b><br><input id="fileB" type="file" accept="image/*" disabled><canvas id="canvasB"></canvas><div id="infoB" class="small">Belum ada gambar</div></div>
+<body class="bg-slate-100 text-slate-800 p-4 md:p-8">
+
+<div class="max-w-5xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-md border border-slate-200">
+    <!-- Header -->
+    <header class="mb-6 border-b border-slate-200 pb-4">
+        <h1 class="text-2xl font-bold text-slate-900">Praktikum P9: Face Matching & Deskriptor Objek</h1>
+        <p class="text-sm text-slate-500 mt-1">
+            Segmentasi ROI Kontur Wajah, Histogram Warna RGB, Momen Hu, & Ekstraksi Tekstur LBP (Local Binary Pattern)
+        </p>
+    </header>
+    
+    <!-- Status Indicator -->
+    <div id="status" class="px-4 py-3 bg-amber-50 text-amber-800 rounded-lg font-medium text-sm mb-6 flex items-center space-x-2 border border-amber-200">
+        <svg class="animate-spin h-4 w-4 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Memuat pustaka OpenCV.js... Harap tunggu sebentar.</span>
+    </div>
+
+    <!-- Preset & Quick Actions -->
+    <div class="mb-6 flex flex-wrap gap-2 items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+        <span class="text-xs font-semibold uppercase text-slate-500">Preset Sampel Pengujian:</span>
+        <div class="flex gap-2">
+            <button id="btnSampleSame" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium rounded transition" disabled>
+                Uji Orang Sama (Prediksi: Match)
+            </button>
+            <button id="btnSampleDiff" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium rounded transition" disabled>
+                Uji Orang Beda (Prediksi: No Match)
+            </button>
+        </div>
+    </div>
+
+    <!-- Image Grid Inputs -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- Object A -->
+        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+            <h2 class="font-semibold text-slate-800 mb-2">Wajah Referensi (Objek A)</h2>
+            <input type="file" id="inputA" accept="image/*" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-3 cursor-pointer" disabled>
+            
+            <div class="relative flex justify-center">
+                <canvas id="canvasA" class="w-full max-w-[240px] h-[240px] object-contain"></canvas>
+            </div>
+            <div class="mt-2 text-left">
+                <span class="text-[11px] text-slate-500 font-medium">ROI & Visualisasi LBP Objek A:</span>
+                <canvas id="canvasLbpA" class="w-full h-16 mt-1 border border-slate-300"></canvas>
+            </div>
+        </div>
+
+        <!-- Object B -->
+        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+            <h2 class="font-semibold text-slate-800 mb-2">Wajah Uji (Objek B)</h2>
+            <input type="file" id="inputB" accept="image/*" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mb-3 cursor-pointer" disabled>
+            
+            <div class="relative flex justify-center">
+                <canvas id="canvasB" class="w-full max-w-[240px] h-[240px] object-contain"></canvas>
+            </div>
+            <div class="mt-2 text-left">
+                <span class="text-[11px] text-slate-500 font-medium">ROI & Visualisasi LBP Objek B:</span>
+                <canvas id="canvasLbpB" class="w-full h-16 mt-1 border border-slate-300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="bg-slate-100 p-4 rounded-lg border border-slate-200 mb-6 flex flex-wrap gap-4 items-center justify-between">
+        <div class="flex items-center space-x-3 w-full md:w-auto">
+            <label for="threshold" class="text-sm font-semibold text-slate-700">Ambang Verifikasi (NCC):</label>
+            <input type="range" id="threshold" min="0.50" max="0.95" step="0.01" value="0.75" class="w-32 accent-blue-600">
+            <span id="threshVal" class="text-sm font-bold bg-white px-2.5 py-1 rounded border border-slate-300 text-blue-600 min-w-[50px] text-center">0.75</span>
+        </div>
+        
+        <button id="btnVerify" class="w-full md:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm disabled:bg-slate-400 disabled:cursor-not-allowed transition" disabled>
+            Jalankan Verifikasi Wajah
+        </button>
+    </div>
+
+    <!-- Result Box -->
+    <div id="resultBox" class="hidden p-6 rounded-xl border-2 transition-all">
+        <div class="flex items-center justify-between mb-2">
+            <h2 id="decisionText" class="text-xl font-bold"></h2>
+            <span id="decisionBadge" class="px-3 py-1 text-xs font-bold uppercase rounded-full"></span>
+        </div>
+        <p id="scoreDetail" class="text-sm mb-4 text-slate-700"></p>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                    <tr class="bg-slate-100 text-slate-700 border-b border-slate-300">
+                        <th class="p-2.5 font-semibold">Deskriptor / Metrik Fitur</th>
+                        <th class="p-2.5 font-semibold">Objek A (Referensi)</th>
+                        <th class="p-2.5 font-semibold">Objek B (Uji)</th>
+                        <th class="p-2.5 font-semibold">Skor Kemiripan (NCC)</th>
+                        <th class="p-2.5 font-semibold">Bobot Evaluasi</th>
+                    </tr>
+                </thead>
+                <tbody id="metricsBody" class="divide-y divide-slate-200 text-slate-600"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
-<div class="controls"><label><b>Threshold:</b> <span id="thresholdVal">0.75</span></label><input id="threshold" type="range" min="0.40" max="0.98" step="0.01" value="0.75"><button id="verify" disabled>Verifikasi Wajah</button></div>
-<div id="result" class="result"><h2 id="decision"></h2><p id="score"></p><div id="notes" class="warning"></div><table><thead><tr><th>Fitur</th><th>Skor kemiripan</th><th>Bobot</th></tr></thead><tbody id="tbody"></tbody></table></div>
-<p class="small">Catatan: ini demonstrasi ekstraksi fitur, bukan sistem biometrik/pengenalan identitas yang tervalidasi. Pastikan foto wajah jelas, ukuran wajah cukup besar, dan pencahayaan relatif serupa.</p>
-</div>
-<script async src="https://docs.opencv.org/4.8.0/opencv.js"></script>
+
+<!-- Async OpenCV Loading -->
+<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="checkOpenCvReady();"></script>
+
 <script>
-let cvReady=false, cascadeReady=false, loadedA=null, loadedB=null, featuresA=null, featuresB=null;
-const statusEl=document.getElementById('status'), verifyBtn=document.getElementById('verify');
-const CASCADE_URL='https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml';
-function setStatus(msg,ok=false){statusEl.textContent=msg;statusEl.className='status'+(ok?' ok':'')}
-function waitCv(){return new Promise(resolve=>{const check=()=>{if(window.cv&&cv.Mat){resolve();}else setTimeout(check,150)};check()})}
-async function init(){try{await waitCv();if(cv.onRuntimeInitialized){};cvReady=true;try{const response=await fetch(CASCADE_URL);if(!response.ok)throw new Error('HTTP '+response.status);const xml=await response.text();cv.FS_createDataFile('/','haarcascade_frontalface_default.xml',xml,true,false,false);cascadeReady=true;}catch(e){console.warn('Cascade gagal:',e);cascadeReady=false}
- document.querySelectorAll('input[type=file]').forEach(el=>el.disabled=false);setStatus(cascadeReady?'OpenCV siap. Unggah kedua foto wajah.':'OpenCV siap, classifier wajah gagal dimuat. ROI fallback akan digunakan.',true);
- }catch(e){console.error(e);setStatus('Gagal memuat OpenCV. Coba buka melalui Live Server dan periksa internet.')}}
-function loadFile(inputId,canvasId,infoId,side){
- document.getElementById(inputId).addEventListener('change',e=>{
-  const f=e.target.files[0]; if(!f)return; const img=new Image();
-  img.onload=()=>{const c=document.getElementById(canvasId),ctx=c.getContext('2d');const max=640,scale=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);ctx.drawImage(img,0,0,c.width,c.height);if(side==='A')loadedA=c;else loadedB=c;document.getElementById(infoId).textContent=`${img.width}×${img.height}px • gambar dimuat`;try{if(side==='A')featuresA=extractFeatures(c);else featuresB=extractFeatures(c);document.getElementById(infoId).textContent+=' • fitur diekstrak';}catch(err){console.error(err);document.getElementById(infoId).textContent='Gagal ekstraksi fitur: '+err.message}verifyBtn.disabled=!(featuresA&&featuresB)};
-  img.onerror=()=>setStatus('File gambar tidak dapat dibaca.',false); img.src=URL.createObjectURL(f);
- });
-}
-function detectFace(src){if(!cascadeReady)return null;let gray=new cv.Mat(),faces=new cv.RectVector(),classifier=new cv.CascadeClassifier();try{cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);classifier.load('haarcascade_frontalface_default.xml');classifier.detectMultiScale(gray,faces,1.1,3,0,new cv.Size(40,40),new cv.Size());if(faces.size()===0)return null;let best=faces.get(0);for(let i=1;i<faces.size();i++){let r=faces.get(i);if(r.width*r.height>best.width*best.height)best=r}return {x:best.x,y:best.y,width:best.width,height:best.height}}finally{gray.delete();faces.delete();classifier.delete()}}
-function cropFace(src,rect){let roi;if(rect){const pad=Math.round(rect.width*0.12),x=Math.max(0,rect.x-pad),y=Math.max(0,rect.y-pad),w=Math.min(src.cols-x,rect.width+2*pad),h=Math.min(src.rows-y,rect.height+2*pad);roi=src.roi(new cv.Rect(x,y,w,h))}else roi=src.clone();return roi}
-function colorHist(roi){let hsv=new cv.Mat();cv.cvtColor(roi,hsv,cv.COLOR_RGBA2RGB);let channels=new cv.MatVector();cv.split(hsv,channels);let vec=[];for(let c=0;c<3;c++){let hist=new cv.Mat(),v=new cv.MatVector();v.push_back(channels.get(c));cv.calcHist(v,[0],new cv.Mat(),hist,[32],[0,256]);cv.normalize(hist,hist,1,0,cv.NORM_L1);for(let i=0;i<32;i++)vec.push(hist.floatAt(i,0));hist.delete();v.delete()}hsv.delete();channels.delete();return vec}
-function lbpHist(gray){let small=new cv.Mat();cv.resize(gray,small,new cv.Size(64,64));let hist=new Array(256).fill(0);for(let y=1;y<63;y++)for(let x=1;x<63;x++){let center=small.ucharAt(y,x),code=0;const nb=[[y-1,x-1],[y-1,x],[y-1,x+1],[y,x+1],[y+1,x+1],[y+1,x],[y+1,x-1],[y,x-1]];nb.forEach((p,i)=>{if(small.ucharAt(p[0],p[1])>=center)code|=(1<<i)});hist[code]++}let total=62*62;hist=hist.map(v=>v/total);small.delete();return hist}
-function huFeatures(gray){let blur=new cv.Mat(),bin=new cv.Mat(),contours=new cv.MatVector(),hier=new cv.Mat();cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);cv.threshold(blur,bin,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU);cv.findContours(bin,contours,hier,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);let max=-1,idx=-1;for(let i=0;i<contours.size();i++){let area=cv.contourArea(contours.get(i));if(area>max){max=area;idx=i}}let result=new Array(7).fill(0);if(idx>=0){let contour=contours.get(idx),mom=cv.moments(contour,false),hu=new cv.Mat();cv.HuMoments(mom,hu);for(let i=0;i<7;i++){let v=hu.doubleAt(i,0);result[i]=v===0?0:-Math.sign(v)*Math.log10(Math.abs(v));}hu.delete();contour.delete()}blur.delete();bin.delete();contours.delete();hier.delete();return result}
-function extractFeatures(canvas){let src=cv.imread(canvas),rect=detectFace(src),roi=cropFace(src,rect),gray=new cv.Mat();cv.cvtColor(roi,gray,cv.COLOR_RGBA2GRAY);let out={color:colorHist(roi),lbp:lbpHist(gray),hu:huFeatures(gray),faceDetected:!!rect,rect};src.delete();roi.delete();gray.delete();return out}
-function cosine(a,b){let dot=0,na=0,nb=0;for(let i=0;i<a.length;i++){dot+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i]}if(!na||!nb)return 0;return Math.max(0,Math.min(1,dot/(Math.sqrt(na)*Math.sqrt(nb))))}
-function huSimilarity(a,b){let dist=0;for(let i=0;i<a.length;i++){dist+=Math.abs(a[i]-b[i])}return 1/(1+dist/7)}
-function compare(){const sColor=cosine(featuresA.color,featuresB.color),sLBP=cosine(featuresA.lbp,featuresB.lbp),sHu=huSimilarity(featuresA.hu,featuresB.hu),combined=.25*sColor+.65*sLBP+.10*sHu,threshold=+document.getElementById('threshold').value,match=combined>=threshold;let box=document.getElementById('result');box.style.display='block';box.className='result '+(match?'match':'nomatch');document.getElementById('decision').textContent=match?'HASIL: COCOK':'HASIL: TIDAK COCOK';document.getElementById('score').textContent=`Skor gabungan ${combined.toFixed(4)} • Threshold ${threshold.toFixed(2)}`;document.getElementById('notes').textContent=(!featuresA.faceDetected||!featuresB.faceDetected)?'Peringatan: wajah tidak terdeteksi pada salah satu gambar; fitur dihitung dari seluruh gambar (fallback), hasil kurang dapat diandalkan.':'ROI wajah berhasil dideteksi pada kedua gambar.';document.getElementById('tbody').innerHTML=`<tr><td>Histogram RGB (ROI)</td><td>${sColor.toFixed(4)}</td><td>25%</td></tr><tr><td>LBP / tekstur</td><td>${sLBP.toFixed(4)}</td><td>65%</td></tr><tr><td>Momen Hu</td><td>${sHu.toFixed(4)}</td><td>10%</td></tr>`}
-document.getElementById('threshold').addEventListener('input',e=>document.getElementById('thresholdVal').textContent=(+e.target.value).toFixed(2));verifyBtn.addEventListener('click',compare);loadFile('fileA','canvasA','infoA','A');loadFile('fileB','canvasB','infoB','B');init();
-</script></body></html>
+    let imgLoadedA = false, imgLoadedB = false;
+
+    // Detection loop for OpenCV readiness
+    function checkOpenCvReady() {
+        if (typeof cv !== 'undefined' && cv.Mat) {
+            onReady();
+        } else {
+            setTimeout(checkOpenCvReady, 50);
+        }
+    }
+
+    function onReady() {
+        const status = document.getElementById('status');
+        status.className = 'px-4 py-3 bg-emerald-50 text-emerald-800 rounded-lg font-medium text-sm mb-6 flex items-center space-x-2 border border-emerald-200';
+        status.innerHTML = `
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <span>Pustaka OpenCV.js Siap! Silakan unggah gambar atau gunakan tombol sampel di atas.</span>
+        `;
+        document.getElementById('inputA').disabled = false;
+        document.getElementById('inputB').disabled = false;
+        document.getElementById('btnSampleSame').disabled = false;
+        document.getElementById('btnSampleDiff').disabled = false;
+    }
+
+    // Slider threshold update
+    document.getElementById('threshold').addEventListener('input', (e) => {
+        document.getElementById('threshVal').textContent = parseFloat(e.target.value).toFixed(2);
+    });
+
+    // Generate Synthetic Face Images for Testing Presets
+    function generateSyntheticFace(canvasId, type) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        canvas.width = 200;
+        canvas.height = 200;
+
+        // Background
+        ctx.fillStyle = type === 'A' || type === 'A2' ? '#334155' : '#475569';
+        ctx.fillRect(0, 0, 200, 200);
+
+        // Cluttered Background Noise (Simulasi latar ramai)
+        ctx.fillStyle = '#64748b';
+        for(let i = 0; i < 15; i++) {
+            ctx.fillRect((i*17)%200, (i*23)%200, 25, 25);
+        }
+
+        // Face Base ROI
+        const isPerson1 = type === 'A' || type === 'A2';
+        ctx.fillStyle = isPerson1 ? '#f87171' : '#fbbf24'; // Reddish skin tone vs Golden skin tone
+        ctx.beginPath();
+        ctx.ellipse(100, 105, isPerson1 ? 45 : 40, isPerson1 ? 55 : 50, 0, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(82, 95, isPerson1 ? 6 : 5, 0, 2 * Math.PI);
+        ctx.arc(118, 95, isPerson1 ? 6 : 5, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Mouth
+        ctx.strokeStyle = '#7f1d1d';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        if(isPerson1) {
+            ctx.arc(100, 125, 18, 0.1 * Math.PI, 0.9 * Math.PI);
+        } else {
+            ctx.moveTo(85, 135);
+            ctx.lineTo(115, 135);
+        }
+        ctx.stroke();
+
+        if (type === 'A' || type === 'A2') imgLoadedA = true;
+        if (type === 'B' || type === 'A2') imgLoadedB = true;
+
+        if (imgLoadedA && imgLoadedB) {
+            document.getElementById('btnVerify').disabled = false;
+        }
+    }
+
+    document.getElementById('btnSampleSame').addEventListener('click', () => {
+        generateSyntheticFace('canvasA', 'A');
+        generateSyntheticFace('canvasB', 'A2');
+        document.getElementById('btnVerify').click();
+    });
+
+    document.getElementById('btnSampleDiff').addEventListener('click', () => {
+        generateSyntheticFace('canvasA', 'A');
+        generateSyntheticFace('canvasB', 'B');
+        document.getElementById('btnVerify').click();
+    });
+
+    // Helper image file loader
+    function loadImageToCanvas(inputElement, canvasId, flagSetter) {
+        inputElement.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.getElementById(canvasId);
+                const ctx = canvas.getContext('2d');
+                canvas.width = 200;
+                canvas.height = 200;
+                ctx.drawImage(img, 0, 0, 200, 200);
+                flagSetter();
+                if (imgLoadedA && imgLoadedB) {
+                    document.getElementById('btnVerify').disabled = false;
+                }
+            };
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
+    loadImageToCanvas(document.getElementById('inputA'), 'canvasA', () => imgLoadedA = true);
+    loadImageToCanvas(document.getElementById('inputB'), 'canvasB', () => imgLoadedB = true);
+
+    /**
+     * EXTRACT LBP (Local Binary Patterns) & Draw Visual Canvas
+     */
+    function computeLBP(grayMat, vizCanvasId) {
+        let rows = grayMat.rows;
+        let cols = grayMat.cols;
+        let lbpMat = new cv.Mat.zeros(rows, cols, cv.CV_8UC1);
+        let hist = new Array(256).fill(0);
+
+        for (let r = 1; r < rows - 1; r++) {
+            for (let c = 1; c < cols - 1; c++) {
+                let center = grayMat.ucharAt(r, c);
+                let code = 0;
+
+                if (grayMat.ucharAt(r - 1, c - 1) >= center) code |= (1 << 7);
+                if (grayMat.ucharAt(r - 1, c)     >= center) code |= (1 << 6);
+                if (grayMat.ucharAt(r - 1, c + 1) >= center) code |= (1 << 5);
+                if (grayMat.ucharAt(r,     c + 1) >= center) code |= (1 << 4);
+                if (grayMat.ucharAt(r + 1, c + 1) >= center) code |= (1 << 3);
+                if (grayMat.ucharAt(r + 1, c)     >= center) code |= (1 << 2);
+                if (grayMat.ucharAt(r + 1, c - 1) >= center) code |= (1 << 1);
+                if (grayMat.ucharAt(r,     c - 1) >= center) code |= (1 << 0);
+
+                lbpMat.ucharPtr(r, c)[0] = code;
+                hist[code]++;
+            }
+        }
+
+        // Display LBP Texture Visualization
+        if (vizCanvasId) {
+            cv.imshow(vizCanvasId, lbpMat);
+        }
+
+        // L2 Normalization
+        let sumSq = hist.reduce((acc, val) => acc + val * val, 0);
+        let norm = Math.sqrt(sumSq) || 1;
+        let normHist = hist.map(val => val / norm);
+
+        lbpMat.delete();
+        return normHist;
+    }
+
+    /**
+     * MAIN EXTRACTOR: ROI Detection, RGB Histogram, Hu Moments, & LBP
+     */
+    function ekstrakFiturObjek(canvasId, lbpCanvasId) {
+        let src = cv.imread(canvasId);
+        let gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
+
+        // Thresholding for ROI Detection
+        let binary = new cv.Mat();
+        cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+        let maxArea = 0, maxIdx = -1;
+        for (let i = 0; i < contours.size(); i++) {
+            let area = cv.contourArea(contours.get(i));
+            if (area > maxArea) {
+                maxArea = area;
+                maxIdx = i;
+            }
+        }
+
+        let roiRect = new cv.Rect(0, 0, src.cols, src.rows);
+        let huVec = new Array(7).fill(0);
+        let bentukInfo = { luas: 0, keliling: 0, rasioAspek: 0 };
+
+        if (maxIdx !== -1) {
+            let konturUtama = contours.get(maxIdx);
+            roiRect = cv.boundingRect(konturUtama);
+
+            let keliling = cv.arcLength(konturUtama, true);
+            bentukInfo = {
+                luas: maxArea.toFixed(0),
+                keliling: keliling.toFixed(1),
+                rasioAspek: (roiRect.width / (roiRect.height || 1)).toFixed(2)
+            };
+
+            let m = cv.moments(konturUtama, false);
+            
+            // Perhitungan 7 Momen Hu secara manual & presisi dari momen terpusat ternormalisasi (eta)
+            // Menghindari TypeError akibat variasi nama binding OpenCV.js di berbagai versi CDN
+            let invM00 = m.m00 !== 0 ? 1.0 / m.m00 : 0;
+            let eta20 = m.mu20 * Math.pow(invM00, 2.0);
+            let eta02 = m.mu02 * Math.pow(invM00, 2.0);
+            let eta11 = m.mu11 * Math.pow(invM00, 2.0);
+            let eta30 = m.mu30 * Math.pow(invM00, 2.5);
+            let eta12 = m.mu12 * Math.pow(invM00, 2.5);
+            let eta21 = m.mu21 * Math.pow(invM00, 2.5);
+            let eta03 = m.mu03 * Math.pow(invM00, 2.5);
+
+            let h = new Array(7);
+            h[0] = eta20 + eta02;
+            h[1] = Math.pow(eta20 - eta02, 2) + 4 * Math.pow(eta11, 2);
+            h[2] = Math.pow(eta30 - 3 * eta21, 2) + Math.pow(3 * eta12 - eta03, 2);
+            h[3] = Math.pow(eta30 + eta12, 2) + Math.pow(eta21 + eta03, 2);
+            h[4] = (eta30 - 3 * eta21) * (eta30 + eta12) * (Math.pow(eta30 + eta12, 2) - 3 * Math.pow(eta21 + eta03, 2)) +
+                   (3 * eta12 - eta03) * (eta21 + eta03) * (3 * Math.pow(eta30 + eta12, 2) - Math.pow(eta21 + eta03, 2));
+            h[5] = (eta20 - eta02) * (Math.pow(eta30 + eta12, 2) - Math.pow(eta21 + eta03, 2)) +
+                   4 * eta11 * (eta30 + eta12) * (eta21 + eta03);
+            h[6] = (3 * eta21 - eta30) * (eta30 + eta12) * (Math.pow(eta30 + eta12, 2) - 3 * Math.pow(eta21 + eta03, 2)) +
+                   (3 * eta12 - eta03) * (eta21 + eta03) * (3 * Math.pow(eta30 + eta12, 2) - Math.pow(eta21 + eta03, 2));
+
+            // Log-transform (-sign(h) * log10(|h|)) untuk menstabilkan skala fitur
+            for (let i = 0; i < 7; i++) {
+                let val = h[i];
+                huVec[i] = (val !== 0 && !isNaN(val)) ? -Math.sign(val) * Math.log10(Math.abs(val)) : 0;
+            }
+        }
+
+        // Crop ROI Mat
+        let roiSrc = src.roi(roiRect);
+        let roiGray = gray.roi(roiRect);
+
+        // 1. RGB Histogram (64 Bins/Channel)
+        let rgb = new cv.Mat();
+        cv.cvtColor(roiSrc, rgb, cv.COLOR_RGBA2RGB);
+
+        let channels = new cv.MatVector();
+        cv.split(rgb, channels);
+        let histVec = [];
+        let histSize = [64];
+        let ranges = [0, 256];
+        let mask = new cv.Mat();
+
+        for (let c = 0; c < 3; c++) {
+            let hist = new cv.Mat();
+            let chVec = new cv.MatVector();
+            chVec.push_back(channels.get(c));
+            cv.calcHist(chVec, [0], mask, hist, histSize, ranges, false);
+            cv.normalize(hist, hist, 1, 0, cv.NORM_L2);
+            for (let i = 0; i < 64; i++) {
+                histVec.push(hist.floatAt(i, 0));
+            }
+            hist.delete();
+            chVec.delete();
+        }
+
+        // 2. Texture Feature: LBP
+        let lbpVec = computeLBP(roiGray, lbpCanvasId);
+
+        // Memory Management Cleanup
+        src.delete(); gray.delete(); binary.delete(); contours.delete(); hierarchy.delete();
+        roiSrc.delete(); roiGray.delete(); rgb.delete(); channels.delete(); mask.delete();
+
+        return { histVec, huVec, lbpVec, bentukInfo };
+    }
+
+    /**
+     * NCC Metric Calculation
+     */
+    function ncc(vecA, vecB) {
+        let dot = 0, normA = 0, normB = 0;
+        for (let i = 0; i < vecA.length; i++) {
+            dot += vecA[i] * vecB[i];
+            normA += vecA[i] * vecA[i];
+            normB += vecB[i] * vecB[i];
+        }
+        if (normA === 0 || normB === 0) return 0;
+        return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    function verifikasiWajah(fiturA, fiturB, ambang) {
+        const skorWarna = ncc(fiturA.histVec, fiturB.histVec);
+        const skorBentuk = ncc(fiturA.huVec, fiturB.huVec);
+        const skorLBP = ncc(fiturA.lbpVec, fiturB.lbpVec);
+
+        // Feature Fusion: 50% LBP + 30% Warna + 20% Momen Hu
+        const skorGabungan = (0.50 * skorLBP) + (0.30 * skorWarna) + (0.20 * skorBentuk);
+        const keputusan = skorGabungan >= ambang ? 'COCOK' : 'TIDAK COCOK';
+
+        return { skorWarna, skorBentuk, skorLBP, skorGabungan, keputusan };
+    }
+
+    // Run verification action
+    document.getElementById('btnVerify').addEventListener('click', () => {
+        const ambang = parseFloat(document.getElementById('threshold').value);
+        const fiturA = ekstrakFiturObjek('canvasA', 'canvasLbpA');
+        const fiturB = ekstrakFiturObjek('canvasB', 'canvasLbpB');
+        const hasil = verifikasiWajah(fiturA, fiturB, ambang);
+
+        const box = document.getElementById('resultBox');
+        const decisionText = document.getElementById('decisionText');
+        const decisionBadge = document.getElementById('decisionBadge');
+        const scoreDetail = document.getElementById('scoreDetail');
+        const tbody = document.getElementById('metricsBody');
+
+        box.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-500', 'bg-rose-50', 'border-rose-500');
+
+        if (hasil.keputusan === 'COCOK') {
+            box.classList.add('bg-emerald-50', 'border-emerald-500');
+            decisionText.className = 'text-xl font-bold text-emerald-900';
+            decisionText.textContent = 'Hasil Verifikasi: COCOK (Identik)';
+            decisionBadge.className = 'px-3 py-1 text-xs font-bold uppercase rounded-full bg-emerald-200 text-emerald-800';
+            decisionBadge.textContent = 'Match';
+        } else {
+            box.classList.add('bg-rose-50', 'border-rose-500');
+            decisionText.className = 'text-xl font-bold text-rose-900';
+            decisionText.textContent = 'Hasil Verifikasi: TIDAK COCOK (Berbeda)';
+            decisionBadge.className = 'px-3 py-1 text-xs font-bold uppercase rounded-full bg-rose-200 text-rose-800';
+            decisionBadge.textContent = 'No Match';
+        }
+
+        scoreDetail.innerHTML = `<strong>Skor Kemiripan Gabungan:</strong> ${hasil.skorGabungan.toFixed(4)} &nbsp;|&nbsp; <strong>Ambang Batas (Threshold):</strong> ${ambang.toFixed(2)}`;
+
+        tbody.innerHTML = `
+            <tr class="hover:bg-white/60">
+                <td class="p-2.5 font-semibold text-slate-800">LBP (Local Binary Patterns)</td>
+                <td class="p-2.5">256 bin histogram (Tekstur ROI)</td>
+                <td class="p-2.5">256 bin histogram (Tekstur ROI)</td>
+                <td class="p-2.5 font-bold text-blue-600">${hasil.skorLBP.toFixed(4)}</td>
+                <td class="p-2.5">50%</td>
+            </tr>
+            <tr class="hover:bg-white/60">
+                <td class="p-2.5 font-semibold text-slate-800">Histogram Warna (RGB)</td>
+                <td class="p-2.5">Vektor 192-dim (Warna ROI)</td>
+                <td class="p-2.5">Vektor 192-dim (Warna ROI)</td>
+                <td class="p-2.5 font-bold text-blue-600">${hasil.skorWarna.toFixed(4)}</td>
+                <td class="p-2.5">30%</td>
+            </tr>
+            <tr class="hover:bg-white/60">
+                <td class="p-2.5 font-semibold text-slate-800">Momen Hu (Shape Invariants)</td>
+                <td class="p-2.5">[${fiturA.huVec.slice(0,3).map(v => v.toFixed(2)).join(', ')}, ...]</td>
+                <td class="p-2.5">[${fiturB.huVec.slice(0,3).map(v => v.toFixed(2)).join(', ')}, ...]</td>
+                <td class="p-2.5 font-bold text-blue-600">${hasil.skorBentuk.toFixed(4)}</td>
+                <td class="p-2.5">20%</td>
+            </tr>
+            <tr class="hover:bg-white/60 text-slate-500">
+                <td class="p-2.5 font-medium">Geometri ROI Terdeteksi</td>
+                <td class="p-2.5">Luas: ${fiturA.bentukInfo.luas}px | Rasio: ${fiturA.bentukInfo.rasioAspek}</td>
+                <td class="p-2.5">Luas: ${fiturB.bentukInfo.luas}px | Rasio: ${fiturB.bentukInfo.rasioAspek}</td>
+                <td class="p-2.5">-</td>
+                <td class="p-2.5">-</td>
+            </tr>
+        `;
+    });
+</script>
+</body>
+</html>
